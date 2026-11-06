@@ -9,8 +9,9 @@ async function readJson(response) {
   return data;
 }
 
-export function getCatalog() {
-  return fetch("/api/catalog").then(readJson);
+export function getCatalog(product) {
+  const query = product ? `?product=${encodeURIComponent(product)}` : "";
+  return fetch(`/api/catalog${query}`).then(readJson);
 }
 
 export function getPrice(config, signal) {
@@ -22,8 +23,17 @@ export function getPrice(config, signal) {
   }).then(readJson);
 }
 
-export function getQuotes() {
-  return fetch("/api/quotes").then(readJson);
+export function getQuotes(product) {
+  const query = product ? `?product=${encodeURIComponent(product)}` : "";
+  return fetch(`/api/quotes${query}`).then(readJson);
+}
+
+export function sendContact(form) {
+  return fetch("/api/contact", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(form),
+  }).then(readJson);
 }
 
 export function saveQuote(config, file) {

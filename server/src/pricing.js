@@ -17,8 +17,9 @@ export const LIMITS = {
   height: { min: 100, max: 160, step: 1 },
   width: { min: 30, max: 80, step: 1 },
   depth: { min: 20, max: 40, step: 1 },
-  frameThickness: { min: 2, max: 4, step: 0.5 },
-  topThickness: { min: 1.5, max: 4, step: 0.1 },
+  frameThickness: { min: 2, max: 4, step: 1 },
+  topThickness: { min: 1, max: 4, step: 1 },
+  legHeight: { min: 0, max: 50, step: 1 },
 };
 
 export const REFERENCE = {
@@ -28,7 +29,17 @@ export const REFERENCE = {
   frameThickness: 3,
   wood: "dab",
   topThickness: 2,
+  paint: "czern",
+  legHeight: 0,
 };
+
+export const PAINTS = [
+  { id: "czern", name: "Czerń", color: "#1a1a1a", note: "Standard ze zdjęcia" },
+  { id: "antracyt", name: "Antracyt", color: "#7d868e", note: "Grafit" },
+  { id: "biel", name: "Biel", color: "#f3efe4", note: "Ciepła" },
+  { id: "zielen", name: "Zieleń", color: "#2f6b4a", note: "Butelkowa" },
+  { id: "braz", name: "Brąz", color: "#8a5340", note: "Ciemny" },
+];
 
 export const WOODS = [
   {
@@ -79,11 +90,12 @@ const FRAME_RATE_AT_2CM = 22;
 const FRAME_RATE_AT_3CM = 32;
 const FRAME_RATE_AT_4CM = 46;
 
-const FINISH_PER_M2 = 80;
-const LABOR_BASE = 200;
-const LABOR_PER_METER = 17;
+export const FINISH_PER_M2 = 80;
+export const LABOR_BASE = 200;
+export const LABOR_PER_METER = 17;
 
 const woodById = new Map(WOODS.map((wood) => [wood.id, wood]));
+const paintById = new Map(PAINTS.map((paint) => [paint.id, paint]));
 
 function lerp(a0, v0, a1, v1, a) {
   return v0 + ((a - a0) / (a1 - a0)) * (v1 - v0);
@@ -120,14 +132,28 @@ function inRange(value, limit) {
   return Number.isFinite(value) && value >= limit.min && value <= limit.max;
 }
 
+function snapCm(value, limit) {
+  const steps = Math.round((value - limit.min) / limit.step);
+  const snapped = limit.min + steps * limit.step;
+  return Math.min(limit.max, Math.max(limit.min, snapped));
+}
+
 export function parseConfig(input = {}) {
   const fields = [];
   const height = Math.round(num(input.height));
   const width = Math.round(num(input.width));
   const depth = Math.round(num(input.depth));
-  const frameThickness = round1(num(input.frameThickness));
-  const topThickness = round1(num(input.topThickness));
+  let frameThickness = round1(num(input.frameThickness));
+  let topThickness = round1(num(input.topThickness));
   const wood = typeof input.wood === "string" ? input.wood : "";
+  const paint =
+    typeof input.paint === "string" && input.paint.trim() !== ""
+      ? input.paint
+      : "czern";
+  const legHeight =
+    input.legHeight === undefined || input.legHeight === null || input.legHeight === ""
+      ? 0
+      : Math.round(num(input.legHeight));
 
   if (!inRange(height, LIMITS.height)) {
     fields.push(
@@ -144,14 +170,36 @@ export function parseConfig(input = {}) {
     fields.push(
       `Grubość ramy: od ${LIMITS.frameThickness.min} do ${LIMITS.frameThickness.max} cm.`,
     );
+  } else {
+    frameThickness = snapCm(frameThickness, LIMITS.frameThickness);
   }
   if (!inRange(topThickness, LIMITS.topThickness)) {
     fields.push(
       `Grubość blatu: od ${LIMITS.topThickness.min} do ${LIMITS.topThickness.max} cm.`,
     );
+  } else {
+    topThickness = snapCm(topThickness, LIMITS.topThickness);
   }
   if (!woodById.has(wood)) {
     fields.push("Wybierz gatunek drewna na blat.");
+  }
+  if (!paintById.has(paint)) {
+    fields.push("Wybierz kolor malowania stali.");
+  }
+  if (!inRange(legHeight, LIMITS.legHeight)) {
+    fields.push(
+      `Wysokość nóg: od ${LIMITS.legHeight.min} do ${LIMITS.legHeight.max} cm.`,
+    );
+  } else if (
+    inRange(height, LIMITS.height) &&
+    inRange(frameThickness, LIMITS.frameThickness) &&
+    inRange(topThickness, LIMITS.topThickness)
+  ) {
+    const woodStart = legHeight > 0 ? Math.max(legHeight, frameThickness) : frameThickness;
+    const opening = height - topThickness - frameThickness - woodStart;
+    if (opening < 12) {
+      fields.push("Nogi są za wysokie. Zostaw przynajmniej 12 cm na polana.");
+    }
   }
 
   if (fields.length) {
@@ -160,7 +208,7 @@ export function parseConfig(input = {}) {
 
   return {
     ok: true,
-    config: { height, width, depth, frameThickness, wood, topThickness },
+    config: { height, width, depth, frameThickness, wood, topThickness, paint, legHeight },
   };
 }
 
@@ -172,9 +220,12 @@ function fmt(n, digits) {
 }
 
 export function priceQuote(config) {
-  const { height, width, depth, frameThickness, wood, topThickness } = config;
+  const { height, width, depth, frameThickness, wood, topThickness, paint } = config;
+  const legHeight = config.legHeight || 0;
   const species = woodById.get(wood);
+  const finish = paintById.get(paint) || paintById.get("czern");
   const postHeight = height - topThickness;
+  const woodStart = legHeight > 0 ? Math.max(legHeight, frameThickness) : frameThickness;
   const meters = (4 * (postHeight + width + depth)) / 100;
   const area = (width / 100) * (depth / 100);
   const steelRate = frameRatePerMeter(frameThickness);
@@ -189,7 +240,7 @@ export function priceQuote(config) {
     {
       id: "steel",
       label: "Rama stalowa",
-      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm`,
+      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ${finish.name.toLowerCase()}${legHeight > 0 ? ` · nogi ${legHeight} cm` : ""}`,
       amount: money(steelExact),
       exact: round2(steelExact),
     },
@@ -227,7 +278,7 @@ export function priceQuote(config) {
     clearance: {
       width: round1(Math.max(0, width - 2 * frameThickness)),
       depth: round1(Math.max(0, depth - 2 * frameThickness)),
-      height: round1(Math.max(0, postHeight - 2 * frameThickness)),
+      height: round1(Math.max(0, postHeight - frameThickness - woodStart)),
     },
   };
 }
@@ -238,9 +289,10 @@ export function getCatalog() {
   return {
     limits: LIMITS,
     woods: WOODS,
+    paints: PAINTS,
     reference: REFERENCE,
     referenceTotal: referencePriced.total,
-    referenceNote: "140 × 45 × 30 cm, rama 3 cm, blat dąb 2 cm",
+    referenceNote: "140 × 45 × 30 cm, rama 3 cm, blat dąb 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
   };
@@ -293,8 +345,36 @@ function assertPricing() {
     failures.push("Większy obrys powinien podnosić cenę.");
   }
 
-  const bad = parseConfig({ ...REFERENCE, height: 90, wood: "mahon" });
+  const white = priceQuote({ ...REFERENCE, paint: "biel" });
+  if (white.total !== quote.total) {
+    failures.push("Kolor malowania nie powinien zmieniać ceny.");
+  }
+
+  const raised = priceQuote({ ...REFERENCE, legHeight: 30 });
+  if (raised.total !== quote.total) {
+    failures.push("Wysokość nóg nie powinna zmieniać ceny.");
+  }
+  if (!(raised.clearance.height < quote.clearance.height)) {
+    failures.push("Wyższe nogi powinny zostawiać mniej miejsca na drewno.");
+  }
+
+  const missingLegs = parseConfig({ ...REFERENCE, legHeight: undefined });
+  if (!missingLegs.ok || missingLegs.config.legHeight !== 0) {
+    failures.push("Brak wysokości nóg powinien oznaczać 0 cm.");
+  }
+
+  const missingPaint = parseConfig({ ...REFERENCE, paint: undefined });
+  if (!missingPaint.ok || missingPaint.config.paint !== "czern") {
+    failures.push("Brak koloru powinien oznaczać czerń.");
+  }
+
+  const bad = parseConfig({ ...REFERENCE, height: 90, wood: "mahon", paint: "zloto" });
   if (bad.ok) failures.push("Zła konfiguracja nie powinna przejść.");
+
+  const snapped = parseConfig({ ...REFERENCE, frameThickness: 2.4, topThickness: 3.6 });
+  if (!snapped.ok || snapped.config.frameThickness !== 2 || snapped.config.topThickness !== 4) {
+    failures.push("Grubość ramy i blatu powinna wskakiwać na pełne centymetry.");
+  }
 
   const good = parseConfig(REFERENCE);
   if (!good.ok) failures.push(`Poprawna konfiguracja odrzucona: ${good.error}`);

@@ -2,3 +2,5 @@ node_modules/
 client/dist/
 server/data/
 .DS_Store
+.env
+server/.env
