@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
+import { shotOf } from "./captureView.js";
 
 function hashSeed(parts) {
   let seed = 2166136261;
@@ -557,7 +558,7 @@ function disposeShelf(group) {
   }
 }
 
-export function ShelfView({
+export const ShelfView = forwardRef(function ShelfView({
   height,
   width,
   depth,
@@ -569,9 +570,16 @@ export function ShelfView({
   legs,
   photoUrl,
   wallColor = "#eadccb",
-}) {
+}, ref) {
   const mountRef = useRef(null);
   const spinRef = useRef(null);
+  const apiRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    capture() {
+      return apiRef.current?.capture() || "";
+    },
+  }));
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -580,6 +588,7 @@ export function ShelfView({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
+      preserveDrawingBuffer: true,
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -872,6 +881,7 @@ export function ShelfView({
     canvas.addEventListener("pointerup", endDrag);
     canvas.addEventListener("pointercancel", endDrag);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    apiRef.current = { capture: () => shotOf(renderer, scene, camera, frameCamera) };
 
     frameCamera();
     const observer = new ResizeObserver(frameCamera);
@@ -884,6 +894,7 @@ export function ShelfView({
       canvas.removeEventListener("pointercancel", endDrag);
       canvas.removeEventListener("wheel", onWheel);
       cancelled = true;
+      apiRef.current = null;
       sourceTexture?.dispose();
       observer.disconnect();
       disposeShelf(shelf);
@@ -900,4 +911,4 @@ export function ShelfView({
   }, [height, width, depth, frame, top, woodColor, woodEdge, frameColor, legs, photoUrl, wallColor]);
 
   return <div ref={mountRef} className="shelf-view" />;
-}
+});

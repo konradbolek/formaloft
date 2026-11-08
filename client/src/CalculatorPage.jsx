@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCatalog, getPrice, getQuotes, saveQuote } from "./api.js";
+import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { PieceSwitch } from "./Pieces.jsx";
+import { Embers } from "./Embers.jsx";
 import { ShelfView } from "./ShelfView.jsx";
 
 const WALL_COLORS = [
@@ -46,13 +48,13 @@ export function CalculatorPage() {
   const [priceError, setPriceError] = useState("");
   const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
+  const viewRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [wallColor, setWallColor] = useState(WALL_COLORS[0].color);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [saved, setSaved] = useState(null);
-  const [quotes, setQuotes] = useState([]);
 
   useEffect(() => {
     let cancel = false;
@@ -69,11 +71,6 @@ export function CalculatorPage() {
           );
         }
       });
-    getQuotes()
-      .then((data) => {
-        if (!cancel) setQuotes(data);
-      })
-      .catch(() => {});
     return () => {
       cancel = true;
     };
@@ -158,16 +155,16 @@ export function CalculatorPage() {
 
   async function onSubmit(event) {
     event.preventDefault();
-    if (!file) {
-      setFormError("Dodaj zdjęcie ściany, żeby zapisać wycenę.");
+    const shot = viewRef.current?.capture();
+    if (!shot) {
+      setFormError("Nie udało się zrobić grafiki mebla. Odśwież podgląd i spróbuj jeszcze raz.");
       return;
     }
     setBusy(true);
     setFormError("");
     try {
-      const created = await saveQuote(config, file);
+      const created = await saveQuote(config, shot, file);
       setSaved(created);
-      setQuotes((current) => [created, ...current.filter((item) => item.id !== created.id)].slice(0, 12));
     } catch (error) {
       setFormError(error.fields?.join(" ") || error.message);
     } finally {
@@ -201,13 +198,18 @@ export function CalculatorPage() {
   return (
     <div className="page">
       <main>
-        <div className="hero">
-          <h1>Stojak na drewno, na wymiar</h1>
-          <p className="lede">
-            Ustaw wysokość, szerokość, głębokość, ramę, kolor stali i blat. Cena
-            liczy się od stali, drewna i robocizny.
-          </p>
+        <div className="hero spark-hero">
+          <Embers />
+          <div className="spark-copy">
+            <h1>Stojak na drewno, na wymiar</h1>
+            <p className="lede">
+              Ustaw wysokość, szerokość, głębokość, ramę, kolor stali i blat. Cena
+              liczy się od stali, drewna i robocizny.
+            </p>
+          </div>
         </div>
+
+        <PieceSwitch />
 
         <form className="layout" onSubmit={onSubmit} noValidate>
           <section className="controls" aria-label="Wymiary i materiał">
@@ -227,7 +229,7 @@ export function CalculatorPage() {
                 </button>
               </div>
               <p className="reference-note">
-                <img src="/realizacja.jpg" alt="Stojak Forma Loft przy schodach" />
+                <img src="/realizacja.jpg" alt="Stojak Stilowo przy schodach" />
                 <span>Model ze zdjęcia: {catalog.referenceNote}.</span>
               </p>
 
@@ -325,6 +327,55 @@ export function CalculatorPage() {
                   })}
                 </div>
               </fieldset>
+
+              <fieldset className="paints wall-colors">
+                <legend>Kolor ściany</legend>
+                <div className="paint-row">
+                  {WALL_COLORS.map((item) => {
+                    const selected = !file && item.color.toLowerCase() === wallColor.toLowerCase();
+                    return (
+                      <button
+                        key={item.color}
+                        type="button"
+                        className={selected ? "paint-chip is-selected" : "paint-chip"}
+                        aria-pressed={selected}
+                        onClick={() => chooseWall(item.color)}
+                      >
+                        <span className="swatch" style={{ background: item.color }} />
+                        <span>{item.name}</span>
+                      </button>
+                    );
+                  })}
+                  <label className="wall-custom">
+                    Inny
+                    <input
+                      className="wall-color"
+                      type="color"
+                      value={wallColor}
+                      aria-label="Własny kolor ściany"
+                      onChange={(event) => chooseWall(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="hint">Zamiast zdjęcia. Podłoga i sufit zostają.</p>
+              </fieldset>
+
+              <div className="file-row">
+                <label className="file-button">
+                  {file ? "Zmień zdjęcie ściany" : "Wgraj zdjęcie ściany"}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => takeFile(event.target.files?.[0])}
+                  />
+                </label>
+                {file && (
+                  <button type="button" className="ghost" onClick={clearFile}>
+                    Pokaż model
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 
@@ -343,6 +394,7 @@ export function CalculatorPage() {
               }}
             >
               <ShelfView
+                ref={viewRef}
                 height={config.height}
                 width={config.width}
                 depth={config.depth}
@@ -356,55 +408,6 @@ export function CalculatorPage() {
                 wallColor={wallColor}
               />
               <p className="stage-chip">{photoLabel}</p>
-            </div>
-
-            <fieldset className="paints wall-colors">
-              <legend>Kolor ściany</legend>
-              <div className="paint-row">
-                {WALL_COLORS.map((item) => {
-                  const selected = !file && item.color.toLowerCase() === wallColor.toLowerCase();
-                  return (
-                    <button
-                      key={item.color}
-                      type="button"
-                      className={selected ? "paint-chip is-selected" : "paint-chip"}
-                      aria-pressed={selected}
-                      onClick={() => chooseWall(item.color)}
-                    >
-                      <span className="swatch" style={{ background: item.color }} />
-                      <span>{item.name}</span>
-                    </button>
-                  );
-                })}
-                <label className="wall-custom">
-                  Inny
-                  <input
-                    className="wall-color"
-                    type="color"
-                    value={wallColor}
-                    aria-label="Własny kolor ściany"
-                    onChange={(event) => chooseWall(event.target.value)}
-                  />
-                </label>
-              </div>
-              <p className="hint">Zamiast zdjęcia. Podłoga i sufit zostają.</p>
-            </fieldset>
-
-            <div className="file-row">
-              <label className="file-button">
-                {file ? "Zmień zdjęcie ściany" : "Wgraj zdjęcie ściany"}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => takeFile(event.target.files?.[0])}
-                />
-              </label>
-              {file && (
-                <button type="button" className="ghost" onClick={clearFile}>
-                  Pokaż model
-                </button>
-              )}
             </div>
             <p className="caption">
               Stojak na podglądzie ma proporcje z suwaków. Przeciągnij go, żeby obrócić.
@@ -466,7 +469,7 @@ export function CalculatorPage() {
               </button>
               {!file && (
                 <p className="hint">
-                  Cena jest już policzona. Zdjęcie ściany jest potrzebne, żeby zapisać wycenę.
+                  Cena jest już policzona. Zdjęcie ściany nie jest wymagane — do wyceny zapisze się grafika mebla.
                 </p>
               )}
               {formError && (
@@ -479,7 +482,7 @@ export function CalculatorPage() {
                   <p className="saved-kicker">Wycena zapisana</p>
                   <p className="saved-id">{saved.id}</p>
                   <p>
-                    {formatZl(saved.price.total)} · zdjęcie ściany jest przy tej wycenie.
+                    {formatZl(saved.price.total)} · grafika mebla jest przy tej wycenie.
                   </p>
                 </div>
               )}
@@ -492,46 +495,6 @@ export function CalculatorPage() {
           <strong>{quote ? formatZl(quote.total) : "…"}</strong>
         </div>
 
-        {quotes.length > 0 && (
-          <section className="history" aria-label="Zapisane wyceny">
-            <h2>Zapisane wyceny</h2>
-            <ul>
-              {quotes.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="history-item"
-                    onClick={() => {
-                      setConfig({
-                        ...item.config,
-                        paint: item.config.paint || "czern",
-                        legHeight: item.config.legHeight || 0,
-                      });
-                      setSaved(item);
-                      setFormError("");
-                    }}
-                  >
-                    <img src={item.photo.url} alt="" />
-                    <span>
-                      <strong>{item.id}</strong>
-                      <span className="history-meta">
-                        {item.config.height} × {item.config.width} × {item.config.depth} cm
-                        {item.config.legHeight ? ` · nogi ${item.config.legHeight} cm` : ""}
-                        {item.config.paint
-                          ? ` · ${
-                              catalog.paints.find((paintItem) => paintItem.id === item.config.paint)
-                                ?.name || item.config.paint
-                            }`
-                          : ""}
-                      </span>
-                    </span>
-                    <span className="history-price">{formatZl(item.price.total)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
         <p className="caption tool-note">
           Stawki warsztatowe są w <code>server/src/pricing.js</code>. Model ze zdjęcia ma
           wychodzić {formatZl(catalog.referenceTotal)}.

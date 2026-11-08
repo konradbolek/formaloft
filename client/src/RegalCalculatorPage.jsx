@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCatalog, getPrice, getQuotes, saveQuote } from "./api.js";
+import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { PieceSwitch } from "./Pieces.jsx";
+import { Embers } from "./Embers.jsx";
 import { RegalView } from "./RegalView.jsx";
 
 const PRODUCT = "regal";
@@ -54,10 +56,9 @@ export function RegalCalculatorPage() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [saved, setSaved] = useState(null);
-  const [quotes, setQuotes] = useState([]);
   const viewRef = useRef(null);
   const [realistic, setRealistic] = useState("");
-  const [realisticName, setRealisticName] = useState("forma-loft-regal.jpg");
+  const [realisticName, setRealisticName] = useState("stilowo-regal.jpg");
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
@@ -71,9 +72,9 @@ export function RegalCalculatorPage() {
   }, [realistic]);
 
   useEffect(() => {
-    document.title = "Forma Loft — regał";
+    document.title = "Stilowo — regał";
     return () => {
-      document.title = "Forma Loft — wycena stojaka";
+      document.title = "Stilowo — wycena stojaka";
     };
   }, []);
 
@@ -92,11 +93,6 @@ export function RegalCalculatorPage() {
           );
         }
       });
-    getQuotes(PRODUCT)
-      .then((data) => {
-        if (!cancel) setQuotes(data);
-      })
-      .catch(() => {});
     return () => {
       cancel = true;
     };
@@ -185,7 +181,7 @@ export function RegalCalculatorPage() {
       }
       const blob = await response.blob();
       const ext = /png/i.test(blob.type) ? "png" : "jpg";
-      setRealisticName(`forma-loft-regal.${ext}`);
+      setRealisticName(`stilowo-regal.${ext}`);
       setRealistic((current) => {
         if (current.startsWith("blob:")) URL.revokeObjectURL(current);
         return URL.createObjectURL(blob);
@@ -216,16 +212,16 @@ export function RegalCalculatorPage() {
 
   async function onSubmit(event) {
     event.preventDefault();
-    if (!file) {
-      setFormError("Dodaj zdjęcie ściany, żeby zapisać wycenę.");
+    const shot = viewRef.current?.capture();
+    if (!shot) {
+      setFormError("Nie udało się zrobić grafiki mebla. Odśwież podgląd i spróbuj jeszcze raz.");
       return;
     }
     setBusy(true);
     setFormError("");
     try {
-      const created = await saveQuote({ ...config, product: PRODUCT }, file);
+      const created = await saveQuote({ ...config, product: PRODUCT }, shot, file);
       setSaved(created);
-      setQuotes((current) => [created, ...current.filter((item) => item.id !== created.id)].slice(0, 12));
     } catch (error) {
       setFormError(error.fields?.join(" ") || error.message);
     } finally {
@@ -259,13 +255,18 @@ export function RegalCalculatorPage() {
   return (
     <div className="page">
       <main>
-        <div className="hero">
-          <h1>Regał asymetryczny, na wymiar</h1>
-          <p className="lede">
-            Układ półek jest ze zdjęcia. Ustaw wysokość, szerokość, głębokość, ramę i drewno.
-            Cena liczy się tymi samymi stawkami co stojak.
-          </p>
+        <div className="hero spark-hero">
+          <Embers />
+          <div className="spark-copy">
+            <h1>Regał asymetryczny, na wymiar</h1>
+            <p className="lede">
+              Układ półek jest ze zdjęcia. Ustaw wysokość, szerokość, głębokość, ramę i drewno.
+              Cena liczy się tymi samymi stawkami co stojak.
+            </p>
+          </div>
         </div>
+
+        <PieceSwitch />
 
         <form className="layout" onSubmit={onSubmit} noValidate>
           <section className="controls" aria-label="Wymiary i materiał">
@@ -285,7 +286,7 @@ export function RegalCalculatorPage() {
                 </button>
               </div>
               <p className="reference-note">
-                <img src="/regal.png" alt="Asymetryczny regał ze stalową ramą i jasnymi półkami" />
+                <img src="/wizualizacja-regal.jpg" alt="Wizualizacja regału asymetrycznego, czarna rama i jasne półki" />
                 <span>Model ze zdjęcia: {catalog.referenceNote}.</span>
               </p>
 
@@ -383,6 +384,55 @@ export function RegalCalculatorPage() {
                   })}
                 </div>
               </fieldset>
+
+              <fieldset className="paints wall-colors">
+                <legend>Kolor ściany</legend>
+                <div className="paint-row">
+                  {WALL_COLORS.map((item) => {
+                    const selected = !file && item.color.toLowerCase() === wallColor.toLowerCase();
+                    return (
+                      <button
+                        key={item.color}
+                        type="button"
+                        className={selected ? "paint-chip is-selected" : "paint-chip"}
+                        aria-pressed={selected}
+                        onClick={() => chooseWall(item.color)}
+                      >
+                        <span className="swatch" style={{ background: item.color }} />
+                        <span>{item.name}</span>
+                      </button>
+                    );
+                  })}
+                  <label className="wall-custom">
+                    Inny
+                    <input
+                      className="wall-color"
+                      type="color"
+                      value={wallColor}
+                      aria-label="Własny kolor ściany"
+                      onChange={(event) => chooseWall(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="hint">Zamiast zdjęcia. Podłoga i sufit zostają.</p>
+              </fieldset>
+
+              <div className="file-row">
+                <label className="file-button">
+                  {file ? "Zmień zdjęcie ściany" : "Wgraj zdjęcie ściany"}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => takeFile(event.target.files?.[0])}
+                  />
+                </label>
+                {file && (
+                  <button type="button" className="ghost" onClick={clearFile}>
+                    Pokaż model
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 
@@ -416,7 +466,6 @@ export function RegalCalculatorPage() {
               />
               <p className="stage-chip">{photoLabel}</p>
             </div>
-
             <button
               type="button"
               className="realistic-button"
@@ -430,55 +479,6 @@ export function RegalCalculatorPage() {
                 {previewError}
               </p>
             )}
-
-            <fieldset className="paints wall-colors">
-              <legend>Kolor ściany</legend>
-              <div className="paint-row">
-                {WALL_COLORS.map((item) => {
-                  const selected = !file && item.color.toLowerCase() === wallColor.toLowerCase();
-                  return (
-                    <button
-                      key={item.color}
-                      type="button"
-                      className={selected ? "paint-chip is-selected" : "paint-chip"}
-                      aria-pressed={selected}
-                      onClick={() => chooseWall(item.color)}
-                    >
-                      <span className="swatch" style={{ background: item.color }} />
-                      <span>{item.name}</span>
-                    </button>
-                  );
-                })}
-                <label className="wall-custom">
-                  Inny
-                  <input
-                    className="wall-color"
-                    type="color"
-                    value={wallColor}
-                    aria-label="Własny kolor ściany"
-                    onChange={(event) => chooseWall(event.target.value)}
-                  />
-                </label>
-              </div>
-              <p className="hint">Zamiast zdjęcia. Podłoga i sufit zostają.</p>
-            </fieldset>
-
-            <div className="file-row">
-              <label className="file-button">
-                {file ? "Zmień zdjęcie ściany" : "Wgraj zdjęcie ściany"}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => takeFile(event.target.files?.[0])}
-                />
-              </label>
-              {file && (
-                <button type="button" className="ghost" onClick={clearFile}>
-                  Pokaż model
-                </button>
-              )}
-            </div>
             <p className="caption">
               Regał ma proporcje z suwaków, a podziały półek zostają jak na zdjęciu. Przeciągnij go,
               żeby obrócić. Kółkiem myszy albo dwoma palcami lekko przybliżysz i oddalisz.
@@ -530,7 +530,7 @@ export function RegalCalculatorPage() {
               </button>
               {!file && (
                 <p className="hint">
-                  Cena jest już policzona. Zdjęcie ściany jest potrzebne, żeby zapisać wycenę.
+                  Cena jest już policzona. Zdjęcie ściany nie jest wymagane — do wyceny zapisze się grafika mebla.
                 </p>
               )}
               {formError && (
@@ -542,7 +542,7 @@ export function RegalCalculatorPage() {
                 <div className="saved" role="status">
                   <p className="saved-kicker">Wycena zapisana</p>
                   <p className="saved-id">{saved.id}</p>
-                  <p>{formatZl(saved.price.total)} · zdjęcie ściany jest przy tej wycenie.</p>
+                  <p>{formatZl(saved.price.total)} · grafika mebla jest przy tej wycenie.</p>
                 </div>
               )}
             </div>
@@ -554,39 +554,6 @@ export function RegalCalculatorPage() {
           <strong>{quote ? formatZl(quote.total) : "…"}</strong>
         </div>
 
-        {quotes.length > 0 && (
-          <section className="history" aria-label="Zapisane wyceny regału">
-            <h2>Zapisane wyceny</h2>
-            <ul>
-              {quotes.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="history-item"
-                    onClick={() => {
-                      setConfig({
-                        ...item.config,
-                        paint: item.config.paint || "czern",
-                        legHeight: item.config.legHeight || 0,
-                      });
-                      setSaved(item);
-                      setFormError("");
-                    }}
-                  >
-                    <img src={item.photo.url} alt="" />
-                    <span>
-                      <strong>{item.id}</strong>
-                      <span className="history-meta">
-                        {item.config.height} × {item.config.width} × {item.config.depth} cm
-                      </span>
-                    </span>
-                    <span className="history-price">{formatZl(item.price.total)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
         <p className="caption tool-note">
           Stawki warsztatowe są te same co przy stojaku, w <code>server/src/pricing.js</code>.
         </p>

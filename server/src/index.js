@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { getCatalog, parseConfig, priceWithReference } from "./pricing.js";
 import { getTvCatalog, parseTvConfig, priceTvWithReference } from "./tvPricing.js";
 import { getRegalCatalog, parseRegalConfig, priceRegalWithReference } from "./regalPricing.js";
+import { registerAdmin } from "./admin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(__dirname, "../data");
@@ -44,7 +45,8 @@ const upload = multer({
     destination: uploadsDir,
     filename(req, file, cb) {
       const ext = ALLOWED_TYPES.get(file.mimetype) || ".jpg";
-      cb(null, `${req.quoteId}${ext}`);
+      const stem = file.fieldname === "preview" ? `${req.quoteId}-podglad` : req.quoteId;
+      cb(null, `${stem}${ext}`);
     },
   }),
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -126,12 +128,25 @@ app.post("/api/price", (req, res) => {
   res.json(tools.price(parsed.config));
 });
 
+function publicQuote(quote) {
+  return {
+    id: quote.id,
+    createdAt: quote.createdAt,
+    product: quote.product || "stojak",
+    config: quote.config,
+    price: quote.price,
+    preview: quote.preview || null,
+    photo: quote.photo || null,
+  };
+}
+
 app.get("/api/quotes", (req, res) => {
   const product = productOf({ product: req.query.product });
   res.json(
     readQuotes()
       .filter((item) => (item.product || "stojak") === product)
-      .slice(0, 12),
+      .slice(0, 12)
+      .map(publicQuote),
   );
 });
 
@@ -267,7 +282,7 @@ async function editWithCursor(file, prompt) {
         text: [
           prompt,
           "The attached image is the reference. Call the image generation tool and make one photorealistic photograph from it.",
-          "Save only that photograph as artifacts/forma-loft-regal.png.",
+          "Save only that photograph as artifacts/stilowo-regal.png.",
           "Do not change other files and do not open a pull request.",
         ].join(" "),
         images: [
@@ -366,9 +381,29 @@ async function renderRealistic(req, res) {
   res.send(image.buffer);
 }
 
+function savedFiles(req) {
+  const files = [];
+  if (req.file) files.push(req.file);
+  if (req.files) {
+    for (const group of Object.values(req.files)) {
+      if (Array.isArray(group)) files.push(...group);
+    }
+  }
+  return files;
+}
+
+function removeUploads(req) {
+  for (const file of savedFiles(req)) {
+    if (file?.path) fs.rmSync(file.path, { force: true });
+  }
+}
+
 app.post("/api/quotes", (req, res, next) => {
   req.quoteId = createId();
-  upload.single("photo")(req, res, (error) => {
+  upload.fields([
+    { name: "preview", maxCount: 1 },
+    { name: "photo", maxCount: 1 },
+  ])(req, res, (error) => {
     if (error) {
       next(error);
       return;
@@ -378,10 +413,13 @@ app.post("/api/quotes", (req, res, next) => {
 });
 
 async function saveQuote(req, res) {
-  if (!req.file) {
+  const preview = req.files?.preview?.[0];
+  const wall = req.files?.photo?.[0];
+  if (!preview) {
+    removeUploads(req);
     res.status(400).json({
-      error: "Dodaj zdjęcie ściany.",
-      fields: ["Dodaj zdjęcie ściany."],
+      error: "Nie udało się zapisać grafiki mebla.",
+      fields: ["Nie udało się zapisać grafiki mebla."],
     });
     return;
   }
@@ -390,31 +428,42 @@ async function saveQuote(req, res) {
   const tools = quoteTools(product);
   const parsed = tools.parse(req.body);
   if (!parsed.ok) {
-    fs.rmSync(req.file.path, { force: true });
+    removeUploads(req);
     res.status(400).json(parsed);
     return;
   }
 
   const price = tools.price(parsed.config);
-  const ext = path.extname(req.file.filename);
+  const previewExt = path.extname(preview.filename);
   const quote = {
     id: req.quoteId,
     createdAt: new Date().toISOString(),
     product,
     config: parsed.config,
     price,
-    photo: {
-      url: `/uploads/${req.quoteId}${ext}`,
-      originalName: req.file.originalname,
+    preview: {
+      url: `/uploads/${req.quoteId}-podglad${previewExt}`,
     },
+    photo: wall
+      ? {
+          url: `/uploads/${req.quoteId}${path.extname(wall.filename)}`,
+          originalName: wall.originalname,
+        }
+      : null,
+    status: "nowa",
+    clientName: "",
+    clientPhone: "",
+    note: "",
   };
 
   await fs.promises.writeFile(
     path.join(quotesDir, `${req.quoteId}.json`),
     JSON.stringify(quote, null, 2),
   );
-  res.status(201).json(quote);
+  res.status(201).json(publicQuote(quote));
 }
+
+registerAdmin(app, { quotesDir, messagesDir });
 
 if (process.env.NODE_ENV === "production" && fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
@@ -428,7 +477,7 @@ if (process.env.NODE_ENV === "production" && fs.existsSync(clientDist)) {
 }
 
 app.use((error, req, res, next) => {
-  if (req.file?.path) fs.rmSync(req.file.path, { force: true });
+  removeUploads(req);
   const tooBig = error?.code === "LIMIT_FILE_SIZE";
   const message = tooBig
     ? "Zdjęcie jest za duże. Maksymalnie 8 MB."
@@ -441,5 +490,5 @@ app.use((error, req, res, next) => {
 });
 
 app.listen(PORT, "127.0.0.1", () => {
-  console.log(`Wycena Forma Loft: http://127.0.0.1:${PORT}`);
+  console.log(`Wycena Stilowo: http://127.0.0.1:${PORT}`);
 });

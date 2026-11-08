@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
+import { shotOf } from "./captureView.js";
 
 function plankTexture(color, edge) {
   const canvas = document.createElement("canvas");
@@ -149,7 +150,7 @@ function disposeGroup(group) {
   }
 }
 
-export function TvShelfView({
+export const TvShelfView = forwardRef(function TvShelfView({
   height,
   width,
   depth,
@@ -163,15 +164,26 @@ export function TvShelfView({
   frameColor,
   photoUrl,
   wallColor = "#eadccb",
-}) {
+}, ref) {
   const mountRef = useRef(null);
   const spinRef = useRef(null);
+  const apiRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    capture() {
+      return apiRef.current?.capture() || "";
+    },
+  }));
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return undefined;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -457,6 +469,7 @@ export function TvShelfView({
     canvas.addEventListener("pointerup", endDrag);
     canvas.addEventListener("pointercancel", endDrag);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    apiRef.current = { capture: () => shotOf(renderer, scene, camera, frameCamera) };
     frameCamera();
     const observer = new ResizeObserver(frameCamera);
     observer.observe(mount);
@@ -468,6 +481,7 @@ export function TvShelfView({
       canvas.removeEventListener("pointercancel", endDrag);
       canvas.removeEventListener("wheel", onWheel);
       cancelled = true;
+      apiRef.current = null;
       sourceTexture?.dispose();
       observer.disconnect();
       disposeGroup(consoleMesh);
@@ -484,4 +498,4 @@ export function TvShelfView({
   }, [height, width, depth, frame, board, shelves, bays, legs, woodColor, woodEdge, frameColor, photoUrl, wallColor]);
 
   return <div ref={mountRef} className="shelf-view" />;
-}
+});

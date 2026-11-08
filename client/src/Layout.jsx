@@ -1,26 +1,32 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Logo } from "./Logo.jsx";
 import { company, nav } from "./site.js";
 
-function Menu({ className }) {
+function Menu({ className, id, onNavigate }) {
   const { pathname } = useLocation();
-  const onCalculator = pathname.startsWith("/kalkulator");
 
   return (
-    <nav className={className} aria-label="Główne">
+    <nav id={id} className={className} aria-label="Główne">
       {nav.map((item) => {
-        if (!item.to.includes("#")) {
+        if (item.to.includes("#")) {
           return (
-            <NavLink key={item.to} to={item.to} end={item.to === "/"}>
+            <Link key={item.to} to={item.to}>
               {item.label}
-            </NavLink>
+            </Link>
           );
         }
-        const active = item.to === "/#kalkulatory" && onCalculator;
+        const onTool = item.to === "/kalkulatory" && pathname.startsWith("/kalkulator");
         return (
-          <Link key={item.to} to={item.to} className={active ? "is-active" : undefined}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === "/"}
+            className={({ isActive }) => (isActive || onTool ? "is-active" : undefined)}
+            onClick={onNavigate}
+          >
             {item.label}
-          </Link>
+          </NavLink>
         );
       })}
     </nav>
@@ -29,6 +35,20 @@ function Menu({ className }) {
 
 export function Layout() {
   const { pathname, hash } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname, hash]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!hash) {
@@ -43,22 +63,35 @@ export function Layout() {
 
   return (
     <>
-      <header className="site-header">
+      <header className={menuOpen ? "site-header is-open" : "site-header"}>
         <div className="site-header-inner">
-          <Link to="/" className="brand">
-            Forma Loft
+          <Link to="/" className="brand" onClick={() => setMenuOpen(false)}>
+            <Logo />
           </Link>
-          <Menu className="site-nav" />
-          <a className="phone" href={company.phoneHref}>
-            {company.phone}
-          </a>
+          <div className="header-tools">
+            <a className="phone" href={company.phoneHref}>
+              {company.phone}
+            </a>
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-expanded={menuOpen}
+              aria-controls="site-menu"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {menuOpen ? "Zamknij" : "Menu"}
+            </button>
+          </div>
+          <Menu id="site-menu" className="site-nav" onNavigate={() => setMenuOpen(false)} />
         </div>
       </header>
       <Outlet />
       <footer className="site-footer">
         <div className="site-footer-inner">
           <div>
-            <p className="brand">Forma Loft</p>
+            <Link to="/" className="brand">
+              <Logo tone="light" />
+            </Link>
             <p>Loftowe meble ze stali i drewna. Ręczne wykonanie, na wymiar.</p>
           </div>
           <Menu className="site-footer-nav" />
@@ -67,7 +100,11 @@ export function Layout() {
             <a className="phone" href={company.phoneHref}>
               {company.phone}
             </a>
-            <p>Wycena pod konkretną ścianę.</p>
+            <p>
+              {company.street}
+              <br />
+              {company.place}
+            </p>
             <Link to="/kontakt">Napisz wiadomość</Link>
           </div>
         </div>

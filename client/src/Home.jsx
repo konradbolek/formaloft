@@ -1,44 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Embers } from "./Embers.jsx";
-import { atmosphere, calculators, company, facts, realizations } from "./site.js";
-
-const ribbon = ["Stal", "Dąb", "Jesion", "Orzech", "Buk", "Sosna", "Na wymiar", "Ręcznie"];
-
-function Reveal({ as: Tag = "div", className = "", delay = 0, children }) {
-  const ref = useRef(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return undefined;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShown(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.18 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <Tag
-      ref={ref}
-      className={`reveal${shown ? " is-in" : ""} ${className}`.trim()}
-      style={{ "--delay": `${delay}ms` }}
-    >
-      {children}
-    </Tag>
-  );
-}
+import { Reveal } from "./Reveal.jsx";
+import { Ribbon } from "./Ribbon.jsx";
+import { PiecePicker } from "./Pieces.jsx";
+import { atmosphere, company, facts, opinions, realizations } from "./site.js";
 
 function Price({ value }) {
   const amount = Number.parseInt(value, 10);
@@ -68,14 +34,20 @@ function Price({ value }) {
       return undefined;
     }
 
+    const rect = node.getBoundingClientRect();
+    if (rect.top < window.innerHeight) {
+      play();
+      return undefined;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting || entry.boundingClientRect.top < window.innerHeight) {
           play();
           observer.disconnect();
         }
       },
-      { threshold: 0.6 },
+      { threshold: 0 },
     );
     observer.observe(node);
     return () => {
@@ -92,37 +64,34 @@ function Price({ value }) {
 }
 
 export function Home() {
-  const loop = [...ribbon, ...ribbon];
-
   return (
     <div className="page home">
       <section className="home-hero">
         <Embers />
         <div className="hero-copy">
+          <p className="hero-stamp">Ręcznie</p>
           <p className="section-kicker">{company.name}</p>
-          <h1>{company.tagline}</h1>
+          <h1>
+            {company.tagline.replace(/\s+\S+$/, "")} <span>{company.tagline.split(" ").at(-1)}</span>
+          </h1>
           <p className="lede">
-            Robimy loftowe stojaki na drewno: czarna stal, drewniany blat i porządek
-            przy kominku. Każdy egzemplarz spawamy ręcznie, w wymiarze ściany.
+            Stojak, półka pod telewizor albo regał. Stal i lite drewno, spawane
+            ręcznie w wymiarze ściany. Cenę widzisz, zanim cokolwiek powstanie.
           </p>
           <div className="hero-actions">
-            <Link className="submit hero-submit" to="/#kalkulatory">
-              Kalkulatory
+            <Link className="submit hero-submit" to="/#meble">
+              Wybierz mebel
             </Link>
-            <Link className="ghost" to="/#realizacje">
+            <Link className="ghost" to="/realizacje">
               Realizacje
             </Link>
           </div>
         </div>
       </section>
 
-      <div className="ticker" aria-hidden="true">
-        <div className="ticker-track">
-          {loop.map((item, index) => (
-            <span key={`${item}-${index}`}>{item}</span>
-          ))}
-        </div>
-      </div>
+      <Ribbon />
+
+      <PiecePicker />
 
       <section className="home-section" id="firma">
         <Reveal>
@@ -131,11 +100,14 @@ export function Home() {
             <h2>Stal, drewno i wymiar Twojej ściany</h2>
           </div>
           <p className="section-copy">
-            Forma Loft składa meble, które mają stać przy kominku i dobrze wyglądać
+            {company.name} składa meble, które mają stać przy kominku i dobrze wyglądać
             na co dzień. Rama jest ze stali, blat z litego drewna. Wysokość,
             szerokość i głębokość ustala się pod konkretne miejsce, nie pod jeden
             wzór z katalogu.
           </p>
+          <Link className="more-link" to="/firma">
+            Więcej o firmie
+          </Link>
         </Reveal>
         <ul className="fact-list">
           {facts.map((fact, index) => (
@@ -176,6 +148,9 @@ export function Home() {
           <div className="section-head">
             <p className="section-kicker">Realizacje</p>
             <h2>Stojak przy schodach</h2>
+            <Link className="more-link" to="/realizacje">
+              Więcej o realizacji
+            </Link>
           </div>
         </Reveal>
         <ul className="realization-list">
@@ -196,29 +171,67 @@ export function Home() {
         </ul>
       </section>
 
+      <section className="home-section opinion-band" id="opinie">
+        <div className="opinion-inner">
+          <Reveal>
+            <div className="section-head">
+              <p className="section-kicker">Opinie</p>
+              <h2>Głos warsztatu</h2>
+            </div>
+            <p className="section-copy">
+              Cytaty klientów dopiszemy z prawdziwych odbiorów. Na razie mówi {company.name}.
+            </p>
+            <Link className="more-link" to="/opinie">
+              Więcej z warsztatu
+            </Link>
+          </Reveal>
+          <ul className="opinion-list">
+            {opinions.filter((item) => item.home).map((item, index) => (
+              <Reveal as="li" key={item.detail} className="opinion-card" delay={index * 90}>
+                <blockquote>
+                  <p>{item.quote}</p>
+                  <footer>
+                    <strong>{item.name}</strong>
+                    <span>{item.detail}</span>
+                  </footer>
+                </blockquote>
+              </Reveal>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <section className="home-section" id="kalkulatory">
         <Reveal>
           <div className="section-head">
-            <p className="section-kicker">Kalkulatory</p>
-            <h2>Policz zanim zamówisz</h2>
+            <p className="section-kicker">Jak liczymy</p>
+            <h2>Od ściany do ceny</h2>
           </div>
+          <p className="section-copy">
+            Kolor ramy i wysokość nóg nie zmieniają ceny. Zdjęcie ściany możesz dołożyć, ale do
+            wyceny i tak zapisuje się grafika mebla.
+          </p>
+          <Link className="more-link" to="/kalkulatory">
+            Jak liczymy
+          </Link>
         </Reveal>
-        <ul className="calc-list">
-          {calculators.map((item, index) => (
-            <li key={item.title}>
-              <Reveal as="article" className="calc-card" delay={index * 80}>
-                <p className="section-kicker">{item.ready ? "Dostępny" : "W przygotowaniu"}</p>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-                {item.ready ? (
-                  <Link className="submit calc-open" to={item.to}>
-                    Otwórz kalkulator
-                  </Link>
-                ) : null}
-              </Reveal>
-            </li>
-          ))}
-        </ul>
+        <ol className="path-list">
+          <li>
+            <span>01</span>
+            <h3>Wybierz mebel</h3>
+            <p>Stojak, półka albo regał. Każdy ma własny kalkulator.</p>
+          </li>
+          <li>
+            <span>02</span>
+            <h3>Ustaw wymiar</h3>
+            <p>Suwak rusza podgląd. Suma liczy się od stali, drewna i robocizny.</p>
+          </li>
+          <li>
+            <span>03</span>
+            <h3>Zapisz wycenę</h3>
+            <p>Zostaje numer, cena i grafika. Warsztat widzi to u siebie.</p>
+          </li>
+        </ol>
       </section>
     </div>
   );

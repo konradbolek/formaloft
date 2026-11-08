@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 /**
- * Stawki warsztatowe Forma Loft.
+ * Stawki warsztatowe Stilowo.
  *
  * Model ze zdjęcia (REFERENCE) ma wychodzić 699 zł — tyle kosztuje
  * stojak na plakacie. Żeby podmienić cennik, edytuj stałe niżej.

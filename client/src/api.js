@@ -23,11 +23,6 @@ export function getPrice(config, signal) {
   }).then(readJson);
 }
 
-export function getQuotes(product) {
-  const query = product ? `?product=${encodeURIComponent(product)}` : "";
-  return fetch(`/api/quotes${query}`).then(readJson);
-}
-
 export function sendContact(form) {
   return fetch("/api/contact", {
     method: "POST",
@@ -36,9 +31,53 @@ export function sendContact(form) {
   }).then(readJson);
 }
 
-export function saveQuote(config, file) {
+function adminFetch(url, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (options.body) headers["Content-Type"] = "application/json";
+  return fetch(url, { ...options, credentials: "include", headers }).then(readJson);
+}
+
+export function adminSession() {
+  return fetch("/api/admin/session", { credentials: "include" }).then(async (response) => {
+    if (response.status === 401) return { ok: false };
+    return readJson(response);
+  });
+}
+
+export function adminLogin(password) {
+  return adminFetch("/api/admin/login", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export function adminLogout() {
+  return adminFetch("/api/admin/logout", { method: "POST" });
+}
+
+export function adminDesk() {
+  return adminFetch("/api/admin/desk");
+}
+
+export function adminPatchQuote(id, patch) {
+  return adminFetch(`/api/admin/quotes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function adminPatchMessage(id, patch) {
+  return adminFetch(`/api/admin/messages/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function saveQuote(config, previewUrl, wallFile) {
+  const preview = await fetch(previewUrl).then((response) => response.blob());
   const body = new FormData();
-  body.append("photo", file);
+  body.append("preview", preview, "podglad.jpg");
+  if (wallFile) body.append("photo", wallFile);
   for (const [key, value] of Object.entries(config)) {
     body.append(key, String(value));
   }

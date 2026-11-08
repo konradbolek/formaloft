@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { sendContact } from "./api.js";
+import { PieceCards } from "./Pieces.jsx";
 import { company } from "./site.js";
+import { StoryHero } from "./StoryHero.jsx";
 
 const EMPTY = { name: "", email: "", phone: "", message: "", website: "" };
 
@@ -31,17 +33,21 @@ export function ContactPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page story">
+      <StoryHero
+        kicker={company.name}
+        title="Napisz albo zadzwoń"
+        lede="Wycena wymiaru jest w kalkulatorze. Tutaj zostaw wiadomość o ścianie, terminie albo wizycie w warsztacie."
+      />
+      <section className="story-block">
+        <p className="section-kicker">Najpierw wymiar</p>
+        <h2>Wycena jest w kalkulatorze</h2>
+        <p className="lede">
+          Wiadomość zostaw, kiedy chcesz umówić wizytę albo dopytać o ścianę. Sam mebel policzysz od razu.
+        </p>
+        <PieceCards />
+      </section>
       <main className="contact">
-        <div className="hero">
-          <p className="section-kicker">{company.name}</p>
-          <h1>Napisz albo zadzwoń</h1>
-          <p className="lede">
-            Wycena wymiaru jest w kalkulatorze. Tutaj zostaw wiadomość o ścianie,
-            terminie albo wizycie w warsztacie.
-          </p>
-        </div>
-
         <div className="contact-layout">
           <form className="panel contact-form" onSubmit={onSubmit} noValidate>
             <h2>Wiadomość</h2>
@@ -114,23 +120,28 @@ export function ContactPage() {
 
           <aside className="contact-side">
             <div className="panel contact-card">
+              <p className="section-kicker">Adres</p>
+              <p className="address">
+                <span>{company.street}</span>
+                <span>{company.place}</span>
+              </p>
               <p className="section-kicker">Telefon</p>
               <a className="contact-phone" href={company.phoneHref}>
                 {company.phone}
               </a>
-              <p>Wizytę w warsztacie umawiamy telefonicznie. Adresu ulicy nie publikujemy.</p>
+              <p>Wizytę w warsztacie umawiamy telefonicznie.</p>
             </div>
             <figure className="contact-map">
               <iframe
-                title="Mapa Polski, dojazd ustalamy telefonicznie"
+                title="Mapa: ul. Grodzisko 10, Pogorzyce"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=14.07%2C49.00%2C24.15%2C54.90&layer=mapnik"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${company.mapLon - 0.012}%2C${company.mapLat - 0.008}%2C${company.mapLon + 0.012}%2C${company.mapLat + 0.008}&layer=mapnik&marker=${company.mapLat}%2C${company.mapLon}`}
               />
               <figcaption>
-                Mapa bez pinezki, bo nie podajemy adresu na stronie.{" "}
+                {company.street}, {company.place}.{" "}
                 <a
-                  href="https://www.openstreetmap.org/#map=6/52.1/19.4"
+                  href={`https://www.openstreetmap.org/?mlat=${company.mapLat}&mlon=${company.mapLon}#map=17/${company.mapLat}/${company.mapLon}`}
                   target="_blank"
                   rel="noreferrer"
                 >

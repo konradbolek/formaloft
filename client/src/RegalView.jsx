@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { shotOf } from "./captureView.js";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { REGAL_LAYOUT } from "../../shared/regalLayout.js";
@@ -161,6 +162,9 @@ export const RegalView = forwardRef(function RegalView({
   const apiRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
+    capture() {
+      return apiRef.current?.captureQuote() || "";
+    },
     captureRealistic() {
       return apiRef.current?.capture() || "";
     },
@@ -481,7 +485,10 @@ export const RegalView = forwardRef(function RegalView({
       frameCamera();
       return url;
     };
-    apiRef.current = { capture };
+    apiRef.current = {
+      capture,
+      captureQuote: () => shotOf(renderer, scene, camera, frameCamera),
+    };
 
     frameCamera();
     const observer = new ResizeObserver(frameCamera);
