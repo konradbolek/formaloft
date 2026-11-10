@@ -10,6 +10,7 @@ const PRODUCT_NAMES = {
   stojak: "Stojak na drewno",
   "polka-rtv": "Półka pod telewizor",
   regal: "Regał asymetryczny",
+  barierka: "Barierka balkonowa",
 };
 
 const fails = new Map();
@@ -38,6 +39,29 @@ function summarize(quote) {
   const config = quote.config || {};
   const wood = labelOf(WOODS, config.wood);
   const paint = labelOf(PAINTS, config.paint || "czern");
+  if (quote.product === "barierka") {
+    const bits = [
+      `${config.length} × ${config.height} cm`,
+      `słupek ${config.postWidth}×${config.postDepth} cm`,
+      `pochwyt ${config.handrailWidth}×${config.handrailThickness} cm`,
+    ];
+    if (config.bottom) bits.push(`rygiel ${config.bottomWidth}×${config.bottomThickness} cm`);
+    if (config.floorGap) bits.push(`odstęp od płyty ${config.floorGap} cm`);
+    const sideName = { brak: "bez boków", lewa: "bok lewy", prawa: "bok prawy", obie: "boki od ściany" }[
+      config.sides
+    ];
+    if (sideName && config.sides && config.sides !== "brak") {
+      bits.push(`${sideName}, wysięg ${config.sideLength} cm`);
+    }
+    bits.push(
+      config.fill === "profil"
+        ? `profile ${config.bars === "poziom" ? "poziome" : "pionowe"} ${config.fillWidth}×${config.fillDepth} cm, prześwit ${config.barGap} cm`
+        : `pręty ${config.bars === "poziom" ? "poziome" : "pionowe"} ${config.barDiameter} cm, prześwit ${config.barGap} cm`,
+    );
+    bits.push(config.mount === "czolo" ? `do czoła, płyta ${config.slabThickness} cm` : "na płycie");
+    if (paint) bits.push(paint);
+    return bits.join(" · ");
+  }
   const bits = [`${config.height} × ${config.width} × ${config.depth} cm`, `rama ${config.frameThickness} cm`];
   if (config.topThickness) bits.push(`blat ${wood} ${config.topThickness} cm`);
   if (config.shelfThickness) bits.push(`${wood} ${config.shelfThickness} cm`);

@@ -144,4 +144,16 @@ export const calculators = [
     to: "/kalkulator/regal",
     ready: true,
   },
+  {
+    id: "barierka",
+    short: "Barierka",
+    title: "Barierka balkonowa",
+    text: "Czoło i boki od ściany. Wypełnienie z prętów albo profili, w pionie albo w poziomie.",
+    size: "300 × 110 cm",
+    price: "1 993 zł",
+    image: "/barierka.svg",
+    visual: true,
+    to: "/kalkulator/barierka-balkonowa",
+    ready: true,
+  },
 ];

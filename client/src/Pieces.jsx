@@ -72,9 +72,26 @@ function BookcaseMark() {
   );
 }
 
+function RailMark() {
+  return (
+    <svg className="piece-mark" viewBox="0 0 96 64" aria-hidden="true">
+      <rect className="steel" x="6" y="16" width="4" height="38" />
+      <rect className="steel" x="46" y="16" width="4" height="38" />
+      <rect className="steel" x="86" y="16" width="4" height="38" />
+      <rect className="steel" x="6" y="14" width="84" height="4" />
+      <rect className="steel" x="6" y="46" width="84" height="3" />
+      <rect className="steel" x="18" y="22" width="2" height="22" />
+      <rect className="steel" x="28" y="22" width="2" height="22" />
+      <rect className="steel" x="58" y="22" width="2" height="22" />
+      <rect className="steel" x="68" y="22" width="2" height="22" />
+    </svg>
+  );
+}
+
 function PieceMark({ id }) {
   if (id === "polka") return <ShelfMark />;
   if (id === "regal") return <BookcaseMark />;
+  if (id === "barierka") return <RailMark />;
   return <StandMark />;
 }
 
@@ -110,12 +127,12 @@ export function PiecePicker() {
     <section className="home-section piece-picker" id="meble">
       <div className="section-head">
         <p className="section-kicker">Meble</p>
-        <h2>Wybierz mebel</h2>
+        <h2>Wybierz kalkulator</h2>
       </div>
       <p className="section-copy">
-        Trzy kalkulatory, jedna stawka warsztatu. Stojak jest ze zdjęcia realizacji.
-        Półka i regał to wizualizacje modelu, nie zamówienia. Cena na karcie dotyczy
-        wymiaru pod zdjęciem.
+        Cztery kalkulatory. Stojak jest ze zdjęcia realizacji. Półka, regał i barierka
+        to wizualizacje modelu, nie zamówienia. Cena na karcie dotyczy wymiaru pod
+        rysunkiem. Barierka ma stawkę startową.
       </p>
       <PieceCards />
     </section>

@@ -1497,6 +1497,20 @@ a.brand {
   fill: #f7f3ec;
 }
 
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 16px;
+  font-weight: 650;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ink);
+}
+
 .more-link,
 .model-list a,
 .story-block .realization a {

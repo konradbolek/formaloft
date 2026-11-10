@@ -75,12 +75,12 @@ export function Home() {
             {company.tagline.replace(/\s+\S+$/, "")} <span>{company.tagline.split(" ").at(-1)}</span>
           </h1>
           <p className="lede">
-            Stojak, półka pod telewizor albo regał. Stal i lite drewno, spawane
-            ręcznie w wymiarze ściany. Cenę widzisz, zanim cokolwiek powstanie.
+            Stojak, półka, regał albo barierka balkonowa. Stal spawana ręcznie,
+            w wymiarze ściany albo balkonu. Cenę widzisz, zanim cokolwiek powstanie.
           </p>
           <div className="hero-actions">
             <Link className="submit hero-submit" to="/#meble">
-              Wybierz mebel
+              Wybierz kalkulator
             </Link>
             <Link className="ghost" to="/realizacje">
               Realizacje
@@ -219,7 +219,7 @@ export function Home() {
           <li>
             <span>01</span>
             <h3>Wybierz mebel</h3>
-            <p>Stojak, półka albo regał. Każdy ma własny kalkulator.</p>
+            <p>Stojak, półka, regał albo barierka. Każde ma własny kalkulator.</p>
           </li>
           <li>
             <span>02</span>

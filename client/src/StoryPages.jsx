@@ -62,10 +62,10 @@ export function CompanyPage() {
 
       <section className="story-block">
         <p className="section-kicker">Meble</p>
-        <h2>Trzy rzeczy, które liczymy</h2>
+        <h2>Cztery rzeczy, które liczymy</h2>
         <p className="lede">
-          Stojak jest ze zdjęcia realizacji. Półka i regał to wizualizacje modelu: pokazują stal i
-          drewno, nie stoją u klienta.
+          Stojak jest ze zdjęcia realizacji. Półka, regał i barierka to wizualizacje modelu: pokazują
+          stal i drewno, nie stoją u klienta. Barierka ma stawkę startową.
         </p>
         <PieceCards />
       </section>
@@ -212,7 +212,7 @@ export function CalculatorsPage() {
       <StoryHero
         kicker="Kalkulatory"
         title="Policz mebel, zanim powstanie"
-        lede="Trzy kalkulatory liczą tę samą stawkę stali, drewna, olejowania i robocizny. Na ekranie widać tylko sumę. Zdjęcie ściany nie jest wymagane — do wyceny zapisuje się grafika mebla."
+        lede="Cztery kalkulatory. Meble liczą stal, drewno, olejowanie i robociznę. Barierka liczy profile i pręty, na razie stawką startową. Na ekranie widać tylko sumę. Zdjęcie nie jest wymagane — do wyceny zapisuje się grafika."
       />
 
       <section className="story-block">
@@ -222,7 +222,7 @@ export function CalculatorsPage() {
             "Grubość ramy i drewna skacze co 1 cm.",
             "Kolor stali i wysokość nóg nie zmieniają ceny.",
             "Kolor ściany jest tylko w podglądzie. Zdjęcie ściany możesz dołożyć, ale nie musisz.",
-            "Podgląd obracasz i przybliżasz. Kamera zostaje w pokoju.",
+            "Podgląd mebla obracasz w pokoju. Barierka stoi na zewnątrz balkonu.",
           ].map((line, index) => (
             <Reveal as="li" key={line} delay={index * 70}>
               {line}
@@ -316,6 +316,42 @@ export function CalculatorsPage() {
             Model ze zdjęcia: 180 × 96 × 28 cm, rama 2 cm, sosna 2 cm, czerń, nogi 0 cm. 1 513 zł.
           </p>
           <Link className="submit calc-open" to="/kalkulator/regal">
+            Otwórz kalkulator
+          </Link>
+        </div>
+      </Reveal>
+
+      <Reveal as="section" className="story-block tool" delay={120}>
+        <figure className="tool-figure">
+          <img className="tool-photo" src="/barierka.svg" alt="Rysunek barierki balkonowej przy elewacji" />
+          <figcaption>Rysunek modelu. To nie jest zdjęcie z balkonu klienta.</figcaption>
+        </figure>
+        <div className="tool-copy">
+          <p className="section-kicker">04</p>
+          <h2>Barierka balkonowa</h2>
+          <p>
+            Jeden odcinek z czołem i bokami od ściany, oglądany z zewnątrz. Słupki rozstawiają się
+            same do podanego maksimum. W środku mogą iść pręty albo profile, pionowo albo poziomo.
+            Prześwit z suwaka jest górną granicą. Poniżej 110 cm wysokości albo powyżej 12 cm szczeliny
+            zostaje uwaga, a wycena i tak się zapisuje.
+          </p>
+          <ul className="spec-list">
+            <Spec label="Długość" value="80–600 cm" />
+            <Spec label="Wysokość" value="80–130 cm" />
+            <Spec label="Słupek" value="3–6 cm" />
+            <Spec label="Pochwyt" value="3–8 × 2–5 cm" />
+            <Spec label="Wypełnienie" value="pręt 1–2 cm albo profil 1–4 cm" />
+            <Spec label="Odstęp od płyty" value="0–20 cm" />
+            <Spec label="Prześwit" value="6–18 cm" />
+            <Spec label="Boki" value="brak, lewa, prawa, obie" />
+            <Spec label="Wysięg" value="60–220 cm" />
+            <Spec label="Mocowanie" value="płyta albo czoło" />
+          </ul>
+          <p className="model-price">
+            Model wyjściowy: 300 × 110 cm, wysięg 110 cm, obie strony, słupek 4×4 cm, pochwyt 4×2 cm,
+            rygiel 2×2 cm, pręty pionowe 1,2 cm. 1 993 zł, stawka startowa.
+          </p>
+          <Link className="submit calc-open" to="/kalkulator/barierka-balkonowa">
             Otwórz kalkulator
           </Link>
         </div>

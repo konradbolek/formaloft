@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n server,client -c dim,blue \"npm run dev -w server\" \"npm run dev -w client\"",
-    "check": "node server/src/pricing.js",
+    "check": "node server/src/pricing.js && node server/src/tvPricing.js && node server/src/regalPricing.js && node server/src/railPricing.js",
     "build": "npm run build -w client",
     "start": "npm run build && npm run start -w server"
   },

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { getCatalog, parseConfig, priceWithReference } from "./pricing.js";
 import { getTvCatalog, parseTvConfig, priceTvWithReference } from "./tvPricing.js";
 import { getRegalCatalog, parseRegalConfig, priceRegalWithReference } from "./regalPricing.js";
+import { getRailCatalog, parseRailConfig, priceRailWithReference } from "./railPricing.js";
 import { registerAdmin } from "./admin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -100,7 +101,9 @@ app.get("/api/health", (req, res) => {
 });
 
 function productOf(body) {
-  if (body?.product === "polka-rtv" || body?.product === "regal") return body.product;
+  if (body?.product === "polka-rtv" || body?.product === "regal" || body?.product === "barierka") {
+    return body.product;
+  }
   return "stojak";
 }
 
@@ -110,6 +113,9 @@ function quoteTools(product) {
   }
   if (product === "regal") {
     return { parse: parseRegalConfig, price: priceRegalWithReference, catalog: getRegalCatalog };
+  }
+  if (product === "barierka") {
+    return { parse: parseRailConfig, price: priceRailWithReference, catalog: getRailCatalog };
   }
   return { parse: parseConfig, price: priceWithReference, catalog: getCatalog };
 }
