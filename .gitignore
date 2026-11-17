@@ -1,6 +1,9 @@
 node_modules/
 client/dist/
 server/data/
+python/.venv/
+python/.pytest_cache/
+**/__pycache__/
 .DS_Store
 .env
 server/.env

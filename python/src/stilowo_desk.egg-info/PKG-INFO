@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: stilowo-desk
+Version: 0.1.0
+Summary: Pulpit warsztatu Stilowo. Pierwszy krok Pythona na danych z kalkulatora.
+Requires-Python: >=3.9
+Requires-Dist: fastapi==0.115.6
+Requires-Dist: uvicorn==0.32.1
+Requires-Dist: pydantic==2.10.4
+Provides-Extra: dev
+Requires-Dist: httpx==0.28.1; extra == "dev"
+Requires-Dist: pytest==8.3.4; extra == "dev"

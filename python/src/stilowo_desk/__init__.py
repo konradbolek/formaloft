@@ -1,0 +1,1 @@
+"""Pakiet pulpitu Stilowo."""
