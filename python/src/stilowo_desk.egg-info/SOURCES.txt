@@ -1,7 +1,10 @@
 pyproject.toml
 src/stilowo_desk/__init__.py
 src/stilowo_desk/app.py
+src/stilowo_desk/db.py
+src/stilowo_desk/models.py
 src/stilowo_desk/quotes.py
+src/stilowo_desk/store.py
 src/stilowo_desk/summary.py
 src/stilowo_desk.egg-info/PKG-INFO
 src/stilowo_desk.egg-info/SOURCES.txt

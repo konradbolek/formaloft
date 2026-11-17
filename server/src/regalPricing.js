@@ -1,11 +1,9 @@
 import { pathToFileURL } from "node:url";
 import { REGAL_LAYOUT } from "../../shared/regalLayout.js";
 import {
-  FINISH_PER_M2,
-  LABOR_BASE,
-  LABOR_PER_METER,
   PAINTS,
   WOODS,
+  currentRates,
   frameRatePerMeter,
 } from "./pricing.js";
 
@@ -172,6 +170,7 @@ export function parseRegalConfig(input = {}) {
 }
 
 export function priceRegalQuote(config) {
+  const rates = currentRates();
   const species = woodById.get(config.wood);
   const finish = paintById.get(config.paint) || paintById.get("czern");
   const geometry = regalGeometry(config, { ignoreLegs: true });
@@ -186,10 +185,11 @@ export function priceRegalQuote(config) {
   );
   const steelRate = frameRatePerMeter(config.frameThickness);
   const steelExact = meters * steelRate;
-  const woodRate = species.pricePerM2At2cm * (config.shelfThickness / 2);
+  const woodPrice = rates.woods[config.wood] ?? species.pricePerM2At2cm;
+  const woodRate = woodPrice * (config.shelfThickness / 2);
   const woodExact = area * woodRate;
-  const finishExact = area * FINISH_PER_M2;
-  const laborExact = LABOR_BASE + meters * LABOR_PER_METER;
+  const finishExact = area * rates.finishM2;
+  const laborExact = rates.laborBase + meters * rates.laborMeter;
   const profile = Math.round(config.frameThickness * 10);
   const shown = regalGeometry(config);
 
@@ -238,16 +238,17 @@ export function priceRegalQuote(config) {
   };
 }
 
-const referencePriced = priceRegalQuote(REGAL_REFERENCE);
-
 export function getRegalCatalog() {
   return {
     product: "regal",
     limits: REGAL_LIMITS,
-    woods: WOODS,
+    woods: WOODS.map((wood) => ({
+      ...wood,
+      pricePerM2At2cm: currentRates().woods[wood.id] ?? wood.pricePerM2At2cm,
+    })),
     paints: PAINTS,
     reference: REGAL_REFERENCE,
-    referenceTotal: referencePriced.total,
+    referenceTotal: priceRegalQuote(REGAL_REFERENCE).total,
     referenceNote: "180 × 96 × 28 cm, układ ze zdjęcia, rama 2 cm, sosna 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
@@ -255,7 +256,7 @@ export function getRegalCatalog() {
 }
 
 export function priceRegalWithReference(config) {
-  return { ...priceRegalQuote(config), referenceTotal: referencePriced.total };
+  return { ...priceRegalQuote(config), referenceTotal: priceRegalQuote(REGAL_REFERENCE).total };
 }
 
 function assertRegalPricing() {

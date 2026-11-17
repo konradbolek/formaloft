@@ -1,10 +1,13 @@
 import { pathToFileURL } from "node:url";
+import { currentRates } from "./rates.js";
+
+export { currentRates };
 
 /**
  * Stawki warsztatowe Stilowo.
  *
- * Model ze zdjęcia (REFERENCE) ma wychodzić 699 zł — tyle kosztuje
- * stojak na plakacie. Żeby podmienić cennik, edytuj stałe niżej.
+ * Model ze zdjęcia przy stawkach startowych ma wychodzić 699 zł.
+ * Bieżący cennik edytuje panel i zapisuje w server/data/rates.json.
  *
  * Wysokość w konfiguracji jest całkowita: od podłogi do wierzchu blatu.
  * Słupki są krótsze o grubość blatu, blat leży na ramie.
@@ -84,12 +87,6 @@ export const WOODS = [
   },
 ];
 
-// zł za metr bieżący profilu zamkniętego, z malowaniem proszkowym na czarno.
-// 2 cm → 20×20, 3 cm → 30×30, 4 cm → 40×40. Wartości pomiędzy są liczone liniowo.
-const FRAME_RATE_AT_2CM = 22;
-const FRAME_RATE_AT_3CM = 32;
-const FRAME_RATE_AT_4CM = 46;
-
 export const FINISH_PER_M2 = 80;
 export const LABOR_BASE = 200;
 export const LABOR_PER_METER = 17;
@@ -102,10 +99,9 @@ function lerp(a0, v0, a1, v1, a) {
 }
 
 export function frameRatePerMeter(thicknessCm) {
-  if (thicknessCm <= 3) {
-    return lerp(2, FRAME_RATE_AT_2CM, 3, FRAME_RATE_AT_3CM, thicknessCm);
-  }
-  return lerp(3, FRAME_RATE_AT_3CM, 4, FRAME_RATE_AT_4CM, thicknessCm);
+  const { frame2, frame3, frame4 } = currentRates();
+  if (thicknessCm <= 3) return lerp(2, frame2, 3, frame3, thicknessCm);
+  return lerp(3, frame3, 4, frame4, thicknessCm);
 }
 
 function round1(n) {
@@ -221,6 +217,7 @@ function fmt(n, digits) {
 
 export function priceQuote(config) {
   const { height, width, depth, frameThickness, wood, topThickness, paint } = config;
+  const rates = currentRates();
   const legHeight = config.legHeight || 0;
   const species = woodById.get(wood);
   const finish = paintById.get(paint) || paintById.get("czern");
@@ -230,10 +227,11 @@ export function priceQuote(config) {
   const area = (width / 100) * (depth / 100);
   const steelRate = frameRatePerMeter(frameThickness);
   const steelExact = meters * steelRate;
-  const woodRate = species.pricePerM2At2cm * (topThickness / 2);
+  const woodPrice = rates.woods[wood] ?? species.pricePerM2At2cm;
+  const woodRate = woodPrice * (topThickness / 2);
   const woodExact = area * woodRate;
-  const finishExact = area * FINISH_PER_M2;
-  const laborExact = LABOR_BASE + meters * LABOR_PER_METER;
+  const finishExact = area * rates.finishM2;
+  const laborExact = rates.laborBase + meters * rates.laborMeter;
   const profile = Math.round(frameThickness * 10);
 
   const lines = [
@@ -283,15 +281,21 @@ export function priceQuote(config) {
   };
 }
 
-const referencePriced = priceQuote(REFERENCE);
+function catalogWoods() {
+  const rates = currentRates();
+  return WOODS.map((wood) => ({
+    ...wood,
+    pricePerM2At2cm: rates.woods[wood.id] ?? wood.pricePerM2At2cm,
+  }));
+}
 
 export function getCatalog() {
   return {
     limits: LIMITS,
-    woods: WOODS,
+    woods: catalogWoods(),
     paints: PAINTS,
     reference: REFERENCE,
-    referenceTotal: referencePriced.total,
+    referenceTotal: priceQuote(REFERENCE).total,
     referenceNote: "140 × 45 × 30 cm, rama 3 cm, blat dąb 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
@@ -299,7 +303,7 @@ export function getCatalog() {
 }
 
 export function priceWithReference(config) {
-  return { ...priceQuote(config), referenceTotal: referencePriced.total };
+  return { ...priceQuote(config), referenceTotal: priceQuote(REFERENCE).total };
 }
 
 function assertPricing() {

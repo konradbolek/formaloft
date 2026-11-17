@@ -22,10 +22,13 @@ class Quote(BaseModel):
 
     id: str
     createdAt: str = ""
+    updatedAt: str = ""
     product: str = "stojak"
     status: str = "nowa"
     price: Price = Field(default_factory=Price)
     clientName: str = ""
+    clientPhone: str = ""
+    note: str = ""
 
 
 def load_quotes(directory: Path) -> list[Quote]:

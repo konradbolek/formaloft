@@ -14,6 +14,10 @@ export default defineConfig({
         proxyTimeout: 240000,
       },
       "/uploads": "http://127.0.0.1:3001",
+      "/desk": {
+        target: "http://127.0.0.1:8000",
+        rewrite: (path) => path.replace(/^\/desk/, ""),
+      },
     },
   },
 });

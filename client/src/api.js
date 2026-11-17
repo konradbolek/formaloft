@@ -37,39 +37,52 @@ function adminFetch(url, options = {}) {
   return fetch(url, { ...options, credentials: "include", headers }).then(readJson);
 }
 
+const panel = "/desk/api/panel";
+
 export function adminSession() {
-  return fetch("/api/admin/session", { credentials: "include" }).then(async (response) => {
+  return fetch(`${panel}/session`, { credentials: "include" }).then(async (response) => {
     if (response.status === 401) return { ok: false };
     return readJson(response);
   });
 }
 
 export function adminLogin(password) {
-  return adminFetch("/api/admin/login", {
+  return adminFetch(`${panel}/login`, {
     method: "POST",
     body: JSON.stringify({ password }),
   });
 }
 
 export function adminLogout() {
-  return adminFetch("/api/admin/logout", { method: "POST" });
+  return adminFetch(`${panel}/logout`, { method: "POST" });
 }
 
 export function adminDesk() {
-  return adminFetch("/api/admin/desk");
+  return adminFetch(`${panel}/desk`);
 }
 
 export function adminPatchQuote(id, patch) {
-  return adminFetch(`/api/admin/quotes/${encodeURIComponent(id)}`, {
+  return adminFetch(`${panel}/quotes/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
 }
 
 export function adminPatchMessage(id, patch) {
-  return adminFetch(`/api/admin/messages/${encodeURIComponent(id)}`, {
+  return adminFetch(`${panel}/messages/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+export function panelRates() {
+  return adminFetch(`${panel}/rates`);
+}
+
+export function savePanelRates(rates) {
+  return adminFetch(`${panel}/rates`, {
+    method: "PUT",
+    body: JSON.stringify(rates),
   });
 }
 

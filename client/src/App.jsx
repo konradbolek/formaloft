@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminPage } from "./AdminPage.jsx";
 import { CalculatorPage } from "./CalculatorPage.jsx";
 import { TvCalculatorPage } from "./TvCalculatorPage.jsx";
@@ -13,7 +13,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="admin" element={<AdminPage />} />
+        <Route path="panel" element={<AdminPage />} />
+        <Route path="admin" element={<Navigate to="/panel" replace />} />
+        <Route path="pulpit" element={<Navigate to="/panel" replace />} />
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="firma" element={<CompanyPage />} />

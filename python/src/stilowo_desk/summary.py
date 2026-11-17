@@ -52,11 +52,27 @@ class Dashboard(BaseModel):
     currency: str = "PLN"
     statuses: list[StatusCount]
     products: list[ProductCount]
+    quotes: list[QuoteRow] = Field(default_factory=list)
     recent: list[QuoteRow] = Field(default_factory=list)
 
 
 def known_status(value: str) -> str:
     return value if value in STATUSES else "nowa"
+
+
+def present(quote: Quote) -> QuoteRow:
+    product = quote.product or "stojak"
+    status = known_status(quote.status)
+    return QuoteRow(
+        id=quote.id,
+        createdAt=quote.createdAt,
+        product=product,
+        productName=PRODUCT_LABELS.get(product, product),
+        status=status,
+        statusLabel=STATUS_LABELS[status],
+        total=quote.price.total,
+        clientName=quote.clientName,
+    )
 
 
 def summarize(quotes: list[Quote], recent_limit: int = 8) -> Dashboard:
@@ -80,20 +96,7 @@ def summarize(quotes: list[Quote], recent_limit: int = 8) -> Dashboard:
         row.count += 1
         row.total += quote.price.total
 
-    recent = [
-        QuoteRow(
-            id=quote.id,
-            createdAt=quote.createdAt,
-            product=quote.product or "stojak",
-            productName=PRODUCT_LABELS.get(quote.product or "stojak", quote.product or "Stojak na drewno"),
-            status=known_status(quote.status),
-            statusLabel=STATUS_LABELS[known_status(quote.status)],
-            total=quote.price.total,
-            clientName=quote.clientName,
-        )
-        for quote in ordered[:recent_limit]
-    ]
-
+    shown = [present(quote) for quote in ordered]
     return Dashboard(
         quoteCount=len(quotes),
         revenue=sum(quote.price.total for quote in ordered),
@@ -102,5 +105,6 @@ def summarize(quotes: list[Quote], recent_limit: int = 8) -> Dashboard:
             for status in STATUSES
         ],
         products=sorted(by_product.values(), key=lambda item: item.total, reverse=True),
-        recent=recent,
+        quotes=shown,
+        recent=shown[:recent_limit],
     )

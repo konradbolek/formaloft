@@ -9,6 +9,7 @@ import {
   adminSession,
 } from "./api.js";
 import { formatZl } from "./format.js";
+import { RatesPanel } from "./RatesPanel.jsx";
 import { Logo } from "./Logo.jsx";
 import { company } from "./site.js";
 
@@ -44,13 +45,77 @@ function sameDraft(draft, quote) {
   );
 }
 
+function withCounts(dashboard, quotes) {
+  if (!dashboard) return null;
+  const tally = Object.fromEntries(dashboard.statuses.map((item) => [item.id, 0]));
+  for (const quote of quotes) {
+    if (quote.status in tally) tally[quote.status] += 1;
+  }
+  return {
+    ...dashboard,
+    quoteCount: quotes.length,
+    statuses: dashboard.statuses.map((item) => ({ ...item, count: tally[item.id] || 0 })),
+  };
+}
+
+function WorkshopBoard({ dashboard }) {
+  if (!dashboard) return null;
+  return (
+    <section className="admin-board" aria-label="Pulpit">
+      <div className="desk-totals">
+        <p>
+          <span>Wyceny</span>
+          <strong>{dashboard.quoteCount}</strong>
+        </p>
+        <p>
+          <span>Suma kwot</span>
+          <strong>{formatZl(dashboard.revenue)}</strong>
+        </p>
+      </div>
+      <div className="desk-grid">
+        <section className="desk-card">
+          <h2>Statusy</h2>
+          <ul>
+            {dashboard.statuses.map((item) => (
+              <li key={item.id}>
+                <span>{item.label}</span>
+                <strong>{item.count}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="desk-card">
+          <h2>Produkty</h2>
+          <ul>
+            {dashboard.products.length === 0 && (
+              <li>
+                <span>Brak wycen</span>
+                <strong>0</strong>
+              </li>
+            )}
+            {dashboard.products.map((item) => (
+              <li key={item.id}>
+                <span>{item.label}</span>
+                <strong>
+                  {item.count} · {formatZl(item.total)}
+                </strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+      <p className="admin-when">Suma jest zbiorem kwot, nie utargiem z faktur.</p>
+    </section>
+  );
+}
+
 export function AdminPage() {
   const [phase, setPhase] = useState("checking");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [section, setSection] = useState("quotes");
-  const [desk, setDesk] = useState({ quotes: [], messages: [] });
+  const [desk, setDesk] = useState({ quotes: [], messages: [], dashboard: null });
   const [deskReady, setDeskReady] = useState(false);
   const [deskError, setDeskError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -105,7 +170,11 @@ export function AdminPage() {
     setDeskError("");
     try {
       const next = await adminDesk();
-      setDesk({ quotes: next.quotes || [], messages: next.messages || [] });
+      setDesk({
+        quotes: next.quotes || [],
+        messages: next.messages || [],
+        dashboard: next.dashboard || null,
+      });
     } catch (error) {
       setDeskError(error.message || "Nie udało się otworzyć kolejki.");
     } finally {
@@ -193,16 +262,16 @@ export function AdminPage() {
 
   async function onLogout() {
     await adminLogout().catch(() => {});
-    setDesk({ quotes: [], messages: [] });
+    setDesk({ quotes: [], messages: [], dashboard: null });
     setSelectedId("");
     setPhase("login");
   }
 
   function replaceQuote(next) {
-    setDesk((current) => ({
-      ...current,
-      quotes: current.quotes.map((item) => (item.id === next.id ? next : item)),
-    }));
+    setDesk((current) => {
+      const quotes = current.quotes.map((item) => (item.id === next.id ? next : item));
+      return { ...current, quotes, dashboard: withCounts(current.dashboard, quotes) };
+    });
   }
 
   function replaceMessage(next) {
@@ -330,6 +399,16 @@ export function AdminPage() {
             Wiadomości
             <span>{openMessages}</span>
           </button>
+          <button
+            type="button"
+            className={section === "rates" ? "is-on" : ""}
+            onClick={() => {
+              setSection("rates");
+              setSelectedId("");
+            }}
+          >
+            Cennik
+          </button>
         </nav>
         <div className="admin-side-foot">
           <Link to="/">Na stronę</Link>
@@ -341,16 +420,18 @@ export function AdminPage() {
       <main className="admin-main">
         <header className="admin-head">
           <div>
-            <h1>{section === "quotes" ? "Wyceny" : "Wiadomości"}</h1>
+            <h1>{section === "quotes" ? "Wyceny" : section === "messages" ? "Wiadomości" : "Cennik"}</h1>
             <p>
-              {!deskReady
-                ? "Otwieram kolejkę…"
-                : queue.length
-                  ? queue.join(" · ")
-                  : "Kolejka pusta. Nowe rzeczy wpadną tutaj same."}
+              {section === "rates"
+                ? "Stawki kalkulatora. Zapis liczy się od następnej wyceny na tym komputerze."
+                : !deskReady
+                  ? "Otwieram kolejkę…"
+                  : queue.length
+                    ? queue.join(" · ")
+                    : "Kolejka pusta. Nowe rzeczy wpadną tutaj same."}
             </p>
           </div>
-          <button type="button" className="admin-refresh" onClick={loadDesk}>
+          <button type="button" className="admin-refresh" onClick={loadDesk} hidden={section === "rates"}>
             Odśwież
           </button>
         </header>
@@ -359,7 +440,9 @@ export function AdminPage() {
         {!deskReady ? (
           <p className="admin-empty">Otwieram kolejkę…</p>
         ) : section === "quotes" ? (
-          <QuoteDesk
+          <>
+            <WorkshopBoard dashboard={desk.dashboard} />
+            <QuoteDesk
             items={visibleQuotes}
             quotes={quotes}
             query={quoteQuery}
@@ -374,6 +457,9 @@ export function AdminPage() {
             onStatus={(status) => selectedQuote && saveQuote(selectedQuote.id, { status })}
             onCommit={commitDraft}
           />
+          </>
+        ) : section === "rates" ? (
+          <RatesPanel />
         ) : (
           <MessageDesk
             items={visibleMessages}

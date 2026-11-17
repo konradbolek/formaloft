@@ -1,10 +1,8 @@
 import { pathToFileURL } from "node:url";
 import {
-  FINISH_PER_M2,
-  LABOR_BASE,
-  LABOR_PER_METER,
   PAINTS,
   WOODS,
+  currentRates,
   frameRatePerMeter,
 } from "./pricing.js";
 
@@ -166,6 +164,7 @@ export function parseTvConfig(input = {}) {
 }
 
 export function priceTvQuote(config) {
+  const rates = currentRates();
   const species = woodById.get(config.wood);
   const finish = paintById.get(config.paint) || paintById.get("czern");
   const { postHeight, gap } = shelfLayout(config);
@@ -175,10 +174,11 @@ export function priceTvQuote(config) {
   const area = config.shelves * (config.width / 100) * (config.depth / 100);
   const steelRate = frameRatePerMeter(config.frameThickness);
   const steelExact = meters * steelRate;
-  const woodRate = species.pricePerM2At2cm * (config.shelfThickness / 2);
+  const woodPrice = rates.woods[config.wood] ?? species.pricePerM2At2cm;
+  const woodRate = woodPrice * (config.shelfThickness / 2);
   const woodExact = area * woodRate;
-  const finishExact = area * FINISH_PER_M2;
-  const laborExact = LABOR_BASE + meters * LABOR_PER_METER;
+  const finishExact = area * rates.finishM2;
+  const laborExact = rates.laborBase + meters * rates.laborMeter;
   const profile = Math.round(config.frameThickness * 10);
   const bayWidth = (config.width - (config.bays + 1) * config.frameThickness) / config.bays;
 
@@ -227,16 +227,17 @@ export function priceTvQuote(config) {
   };
 }
 
-const referencePriced = priceTvQuote(TV_REFERENCE);
-
 export function getTvCatalog() {
   return {
     product: "polka-rtv",
     limits: TV_LIMITS,
-    woods: WOODS,
+    woods: WOODS.map((wood) => ({
+      ...wood,
+      pricePerM2At2cm: currentRates().woods[wood.id] ?? wood.pricePerM2At2cm,
+    })),
     paints: PAINTS,
     reference: TV_REFERENCE,
-    referenceTotal: referencePriced.total,
+    referenceTotal: priceTvQuote(TV_REFERENCE).total,
     referenceNote: "50 × 180 × 40 cm, 3 półki, 2 segmenty, rama 2 cm, dąb 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
@@ -244,7 +245,7 @@ export function getTvCatalog() {
 }
 
 export function priceTvWithReference(config) {
-  return { ...priceTvQuote(config), referenceTotal: referencePriced.total };
+  return { ...priceTvQuote(config), referenceTotal: priceTvQuote(TV_REFERENCE).total };
 }
 
 function assertTvPricing() {

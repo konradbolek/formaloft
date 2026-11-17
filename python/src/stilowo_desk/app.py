@@ -1,105 +1,187 @@
-"""Pulpit warsztatu. Czyta wyceny z kalkulatora i pokazuje ich skrót."""
+"""API warsztatu. Widok jest w Reactcie, tutaj zostaje JSON i baza."""
 
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
+from sqlalchemy.orm import Session
 
-from stilowo_desk.quotes import load_quotes
-from stilowo_desk.summary import Dashboard, summarize
+from stilowo_desk.auth import load_workshop_secrets, login, logout, require_workshop
+from stilowo_desk.db import configure, get_session, upgrade_database
+from stilowo_desk.panel import present_message, present_quote, workshop_desk
+from stilowo_desk.rates import RateCard, RateView, read_card, save_card
+from stilowo_desk.store import (
+    StatusError,
+    raw_quotes,
+    records,
+    set_status,
+    sync_from_files,
+    sync_messages,
+    update_message,
+    update_quote,
+)
+from stilowo_desk.summary import Dashboard, QuoteRow, present, summarize
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_QUOTES = PACKAGE_ROOT.parent / "server" / "data" / "quotes"
+REPO_ROOT = PACKAGE_ROOT.parent
+DEFAULT_QUOTES = REPO_ROOT / "server" / "data" / "quotes"
+DEFAULT_MESSAGES = REPO_ROOT / "server" / "data" / "messages"
 
 
 def quotes_dir() -> Path:
     configured = os.environ.get("STILOWO_QUOTES_DIR", "").strip()
-    if configured:
-        return Path(configured)
-    return DEFAULT_QUOTES
+    return Path(configured) if configured else DEFAULT_QUOTES
 
 
-def dashboard() -> Dashboard:
-    return summarize(load_quotes(quotes_dir()))
+def messages_dir() -> Path:
+    configured = os.environ.get("STILOWO_MESSAGES_DIR", "").strip()
+    return Path(configured) if configured else DEFAULT_MESSAGES
 
 
-app = FastAPI(title="Stilowo — pulpit", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    load_workshop_secrets(REPO_ROOT / "server" / ".env")
+    configure()
+    upgrade_database()
+    yield
+
+
+app = FastAPI(title="Stilowo — panel", version="0.3.0", lifespan=lifespan)
+
+
+class StatusBody(BaseModel):
+    status: str
+
+
+class PasswordBody(BaseModel):
+    password: str = ""
+
+
+class QuotePatch(BaseModel):
+    status: Optional[str] = None
+    clientName: Optional[str] = None
+    clientPhone: Optional[str] = None
+    note: Optional[str] = None
+
+
+class MessagePatch(BaseModel):
+    handled: Optional[bool] = None
+    note: Optional[str] = None
+
+
+@app.exception_handler(HTTPException)
+def http_error(_request, exc: HTTPException):
+    message = exc.detail if isinstance(exc.detail, str) else "Nie udało się zapisać."
+    return JSONResponse(status_code=exc.status_code, content={"error": message})
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"name": "Stilowo — panel", "panel": "/api/panel/desk"}
+
+
+@app.post("/api/panel/login")
+def panel_login(body: PasswordBody, request: Request):
+    return login(request, body.password)
+
+
+@app.post("/api/panel/logout")
+def panel_logout():
+    return logout()
+
+
+@app.get("/api/panel/session")
+def panel_session(_auth: None = Depends(require_workshop)) -> dict[str, bool]:
+    return {"ok": True}
+
+
+@app.get("/api/panel/desk")
+def panel_desk(db: Session = Depends(get_session), _auth: None = Depends(require_workshop)) -> dict:
+    return workshop_desk(db, quotes_dir(), messages_dir())
+
+
+@app.patch("/api/panel/quotes/{quote_id}")
+def panel_quote(
+    quote_id: str,
+    body: QuotePatch,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nie ma czego zapisać.")
+    sync_from_files(db, quotes_dir())
+    try:
+        row = update_quote(db, quotes_dir(), quote_id, changes)
+    except StatusError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nie ma takiej wyceny.")
+    return present_quote(row, raw_quotes(quotes_dir()).get(row.id, {}))
+
+
+@app.patch("/api/panel/messages/{message_id}")
+def panel_message(
+    message_id: str,
+    body: MessagePatch,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nie ma czego zapisać.")
+    sync_messages(db, messages_dir())
+    row = update_message(db, messages_dir(), message_id, changes)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nie ma takiej wiadomości.")
+    return present_message(row)
+
+
+@app.get("/api/panel/rates", response_model=RateView)
+def panel_rates(db: Session = Depends(get_session), _auth: None = Depends(require_workshop)) -> RateView:
+    return read_card(db)
+
+
+@app.put("/api/panel/rates", response_model=RateView)
+def panel_save_rates(
+    body: dict,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> RateView:
+    try:
+        card = RateCard.model_validate(body)
+    except ValidationError as error:
+        raise HTTPException(status_code=400, detail="Stawka ma być liczbą od 0 do 20 000 zł.") from error
+    return save_card(db, card)
 
 
 @app.get("/api/dashboard", response_model=Dashboard)
-def dashboard_json() -> Dashboard:
-    return dashboard()
+def dashboard_json(
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> Dashboard:
+    sync_from_files(db, quotes_dir())
+    return summarize([row.as_quote() for row in records(db)])
 
 
-@app.get("/", response_class=HTMLResponse)
-def dashboard_page() -> str:
-    data = dashboard()
-    status_rows = "".join(
-        f"<li><span>{item.label}</span><strong>{item.count}</strong></li>" for item in data.statuses
-    )
-    product_rows = "".join(
-        f"<li><span>{item.label}</span><strong>{item.count} · {item.total} zł</strong></li>"
-        for item in data.products
-    ) or "<li><span>Brak wycen</span><strong>0 zł</strong></li>"
-    recent_rows = "".join(
-        "<tr>"
-        f"<td>{item.id}</td>"
-        f"<td>{item.productName}</td>"
-        f"<td>{item.statusLabel}</td>"
-        f"<td>{item.total} zł</td>"
-        f"<td>{item.clientName or '—'}</td>"
-        "</tr>"
-        for item in data.recent
-    ) or "<tr><td colspan='5'>Katalog wycen jest pusty. Zapis z kalkulatora pojawi się tutaj.</td></tr>"
-
-    return f"""<!doctype html>
-<html lang="pl">
-<head>
-  <meta charset="utf-8" />
-  <title>Stilowo — pulpit</title>
-  <style>
-    :root {{ color: #1b1714; background: #ebe4d8; font-family: "Avenir Next", sans-serif; }}
-    body {{ margin: 0; }}
-    main {{ max-width: 920px; margin: 0 auto; padding: 36px 20px 64px; }}
-    h1 {{ font-size: 40px; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }}
-    p {{ margin: 0 0 28px; }}
-    .totals {{ display: flex; gap: 16px; margin-bottom: 28px; }}
-    .total {{ background: #1b1714; color: #f7f3ec; padding: 18px 20px; min-width: 180px; }}
-    .total strong {{ display: block; font-size: 32px; }}
-    section {{ background: #f7f3ec; padding: 18px 20px; margin-bottom: 16px; }}
-    h2 {{ margin: 0 0 12px; font-size: 16px; letter-spacing: 0.12em; text-transform: uppercase; }}
-    ul {{ list-style: none; margin: 0; padding: 0; }}
-    li, tr {{ display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #e4dccf; }}
-    table {{ width: 100%; border-collapse: collapse; }}
-    td {{ padding: 8px 0; border-top: 1px solid #e4dccf; }}
-    td:last-child, td:nth-child(4) {{ text-align: right; }}
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Pulpit warsztatu</h1>
-    <p>Wyceny zapisane przez kalkulator. Suma jest zbiorem kwot, nie utargiem z faktur.</p>
-    <div class="totals">
-      <div class="total"><span>Wyceny</span><strong>{data.quoteCount}</strong></div>
-      <div class="total"><span>Suma kwot</span><strong>{data.revenue} zł</strong></div>
-    </div>
-    <section>
-      <h2>Statusy</h2>
-      <ul>{status_rows}</ul>
-    </section>
-    <section>
-      <h2>Produkty</h2>
-      <ul>{product_rows}</ul>
-    </section>
-    <section>
-      <h2>Ostatnie</h2>
-      <table>
-        <tbody>{recent_rows}</tbody>
-      </table>
-    </section>
-  </main>
-</body>
-</html>"""
+@app.patch("/api/quotes/{quote_id}", response_model=QuoteRow)
+def change_status(
+    quote_id: str,
+    body: StatusBody,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> QuoteRow:
+    sync_from_files(db, quotes_dir())
+    try:
+        row = set_status(db, quotes_dir(), quote_id, body.status)
+    except StatusError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nie ma takiej wyceny.")
+    return present(row.as_quote())

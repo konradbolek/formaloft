@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { LABOR_PER_METER, PAINTS, frameRatePerMeter } from "./pricing.js";
+import { PAINTS, currentRates, frameRatePerMeter } from "./pricing.js";
 import { railLayout } from "../../shared/railLayout.js";
 
 /**
@@ -53,11 +53,6 @@ export const RAIL_REFERENCE = {
   paint: "czern",
 };
 
-const BAR_RATE_AT_1CM = 8;
-const BAR_RATE_AT_2CM = 18;
-const RAIL_LABOR_BASE = 280;
-const RAIL_LABOR_PER_BAR = 12;
-
 const paintById = new Map(PAINTS.map((paint) => [paint.id, paint]));
 
 function lerp(a0, v0, a1, v1, a) {
@@ -65,7 +60,8 @@ function lerp(a0, v0, a1, v1, a) {
 }
 
 function barRatePerMeter(diameterCm) {
-  return lerp(1, BAR_RATE_AT_1CM, 2, BAR_RATE_AT_2CM, diameterCm);
+  const { bar1, bar2 } = currentRates();
+  return lerp(1, bar1, 2, bar2, diameterCm);
 }
 
 function profileRate(widthCm, depthCm) {
@@ -278,8 +274,10 @@ export function priceRail(config) {
   const fillSection = profileFill
     ? `${config.fillWidth}×${config.fillDepth} cm`
     : `ø ${fmt(config.barDiameter, 1)} cm`;
+  const rates = currentRates();
   const structuralMeters = postMeters + railMeters + bottomMeters;
-  const laborExact = RAIL_LABOR_BASE + structuralMeters * LABOR_PER_METER + layout.barCount * RAIL_LABOR_PER_BAR;
+  const laborExact =
+    rates.railLaborBase + structuralMeters * rates.laborMeter + layout.barCount * rates.railLaborPiece;
   const mountNote = config.mount === "czolo" ? `do czoła, płyta ${config.slabThickness} cm` : "na płycie";
 
   const lines = [
@@ -334,14 +332,12 @@ export function priceRail(config) {
   };
 }
 
-const referencePriced = priceRail(RAIL_REFERENCE);
-
 export function getRailCatalog() {
   return {
     limits: RAIL_LIMITS,
     paints: PAINTS,
     reference: RAIL_REFERENCE,
-    referenceTotal: referencePriced.total,
+    referenceTotal: priceRail(RAIL_REFERENCE).total,
     referenceNote:
       "300 × 110 cm, wysięg 110 cm, boki od ściany, słupek 4×4 cm, pochwyt 4×2 cm, rygiel 2×2 cm, pręty pionowe 1,2 cm, prześwit do 11 cm, na płycie",
     phone: "535 947 696",
@@ -350,7 +346,7 @@ export function getRailCatalog() {
 }
 
 export function priceRailWithReference(config) {
-  return { ...priceRail(config), referenceTotal: referencePriced.total };
+  return { ...priceRail(config), referenceTotal: priceRail(RAIL_REFERENCE).total };
 }
 
 function assertRailPricing() {
