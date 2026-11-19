@@ -318,7 +318,7 @@ def test_assistant_answers_from_the_queue_and_stays_off_without_a_key(monkeypatc
     monkeypatch.setenv("STILOWO_MESSAGES_DIR", str(messages))
     monkeypatch.setenv("ADMIN_PASSWORD", PASSWORD)
     monkeypatch.setenv("ADMIN_SECRET", "test-secret")
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "")
 
     from stilowo_desk.assistant import Answer, workshop_brief
 

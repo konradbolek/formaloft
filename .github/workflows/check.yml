@@ -1,0 +1,38 @@
+name: Sprawdzenie
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pulpit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest -q
+
+  kalkulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+  obraz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f python/compose.yaml up -d --build --wait
+      - run: python3 -c "import json,urllib.request; body=json.load(urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)); assert body['panel']=='/api/panel/desk'"

@@ -17,5 +17,28 @@ services:
     volumes:
       - stilowo_pg:/var/lib/postgresql/data
 
+  desk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      STILOWO_DATABASE_URL: postgresql+psycopg://stilowo:stilowo@db:5432/stilowo
+    env_file:
+      - path: ../server/.env
+        required: false
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ../server/data:/opt/stilowo/server/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=2)"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 8s
+
 volumes:
   stilowo_pg:

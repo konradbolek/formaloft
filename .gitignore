@@ -3,6 +3,7 @@ client/dist/
 server/data/
 python/.venv/
 python/.pytest_cache/
+python/.ruff_cache/
 **/__pycache__/
 .DS_Store
 .env
