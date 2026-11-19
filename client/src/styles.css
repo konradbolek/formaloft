@@ -2567,6 +2567,20 @@ a.brand {
   cursor: default;
 }
 
+.realization-editor-photo {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 18px;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
 .admin-error {
   margin: 0 0 14px;
   color: var(--warn);

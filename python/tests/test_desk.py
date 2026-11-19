@@ -352,3 +352,67 @@ def test_assistant_answers_from_the_queue_and_stays_off_without_a_key(monkeypatc
         brief = workshop_brief({"quotes": [], "messages": [], "dashboard": {}}, {"woods": {"dab": 520}})
         assert "520" in brief
         assert "utarg" in brief
+
+
+def test_realizations_are_edited_in_the_panel_and_published_on_the_site(monkeypatch, tmp_path: Path) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    quotes = tmp_path / "quotes"
+    quotes.mkdir()
+    monkeypatch.setenv("STILOWO_DATABASE_URL", f"sqlite:///{tmp_path / 'desk.db'}")
+    monkeypatch.setenv("STILOWO_QUOTES_DIR", str(quotes))
+    monkeypatch.setenv("ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("ADMIN_SECRET", "test-secret")
+
+    with TestClient(app) as client:
+        public = client.get("/api/realizations")
+        assert public.status_code == 200
+        shown = public.json()["items"]
+        assert [item["id"] for item in shown] == ["RZ-STOJAK"]
+        assert shown[0]["title"] == "Stojak na drewno przy schodach"
+        assert "clientName" not in shown[0]
+        assert client.get("/api/realizations/RZ-STOJAK/photo").status_code == 404
+
+        assert client.post("/api/panel/realizations", json={"title": "Szkic"}).status_code == 401
+        login(client)
+        created = client.post("/api/panel/realizations", json={"title": "Szkic półki"})
+        assert created.status_code == 200
+        draft = created.json()
+        assert draft["published"] is False
+        assert draft["id"].startswith("RZ-")
+        still = client.get("/api/realizations").json()["items"]
+        assert [item["id"] for item in still] == ["RZ-STOJAK"]
+
+        published = client.patch(
+            f"/api/panel/realizations/{draft['id']}",
+            json={"published": True, "calculatorPath": "/kalkulator/polka-pod-telewizor"},
+        )
+        assert published.status_code == 200
+        assert [item["id"] for item in client.get("/api/realizations").json()["items"]] == [
+            "RZ-STOJAK",
+            draft["id"],
+        ]
+        rejected = client.patch(
+            f"/api/panel/realizations/{draft['id']}",
+            json={"calculatorPath": "https://example.com"},
+        )
+        assert rejected.status_code == 400
+
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), (20, 20, 20)).save(buffer, "JPEG")
+        photo = client.post(
+            f"/api/panel/realizations/{draft['id']}/photo",
+            files={"photo": ("mebel.jpg", buffer.getvalue(), "image/jpeg")},
+        )
+        assert photo.status_code == 200
+        assert photo.json()["image"] == f"/desk/api/realizations/{draft['id']}/photo"
+        opened = client.get(f"/api/realizations/{draft['id']}/photo")
+        assert opened.status_code == 200
+        assert opened.headers["content-type"].startswith("image/jpeg")
+
+        removed = client.delete(f"/api/panel/realizations/{draft['id']}")
+        assert removed.status_code == 200
+        assert client.get(f"/api/realizations/{draft['id']}/photo").status_code == 404
+        assert [item["id"] for item in client.get("/api/realizations").json()["items"]] == ["RZ-STOJAK"]

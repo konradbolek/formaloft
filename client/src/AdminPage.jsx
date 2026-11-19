@@ -12,6 +12,7 @@ import {
 import { formatZl } from "./format.js";
 import { RatesPanel } from "./RatesPanel.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
+import { RealizationsPanel } from "./RealizationsPanel.jsx";
 import { Logo } from "./Logo.jsx";
 import { company } from "./site.js";
 
@@ -413,6 +414,16 @@ export function AdminPage() {
           </button>
           <button
             type="button"
+            className={section === "realizations" ? "is-on" : ""}
+            onClick={() => {
+              setSection("realizations");
+              setSelectedId("");
+            }}
+          >
+            Realizacje
+          </button>
+          <button
+            type="button"
             className={section === "assistant" ? "is-on" : ""}
             onClick={() => {
               setSection("assistant");
@@ -439,13 +450,17 @@ export function AdminPage() {
                   ? "Wiadomości"
                   : section === "assistant"
                     ? "Asystent"
-                    : "Cennik"}
+                    : section === "realizations"
+                      ? "Realizacje"
+                      : "Cennik"}
             </h1>
             <p>
               {section === "rates"
                 ? "Stawki kalkulatora. Zapis liczy się od następnej wyceny na tym komputerze."
                 : section === "assistant"
                   ? "Pytanie o kolejkę i cennik. Asystent widzi tylko to, co jest w panelu."
+                  : section === "realizations"
+                    ? "Zdjęcia gotowych mebli. Zapis widać na stronie. Odebrana wycena nie publikuje się sama."
                   : !deskReady
                     ? "Otwieram kolejkę…"
                     : queue.length
@@ -453,7 +468,7 @@ export function AdminPage() {
                       : "Kolejka pusta. Nowe rzeczy wpadną tutaj same."}
             </p>
           </div>
-          <button type="button" className="admin-refresh" onClick={loadDesk} hidden={section === "rates" || section === "assistant"}>
+          <button type="button" className="admin-refresh" onClick={loadDesk} hidden={section === "rates" || section === "assistant" || section === "realizations"}>
             Odśwież
           </button>
         </header>
@@ -482,6 +497,8 @@ export function AdminPage() {
           </>
         ) : section === "rates" ? (
           <RatesPanel />
+        ) : section === "realizations" ? (
+          <RealizationsPanel />
         ) : section === "assistant" ? (
           <AssistantPanel
             onOpen={(id) => {

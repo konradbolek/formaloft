@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,18 @@ from stilowo_desk.db import configure, get_session, upgrade_database
 from stilowo_desk.offer import render_offer
 from stilowo_desk.panel import present_message, present_quote, workshop_desk
 from stilowo_desk.rates import RateView, card_from, read_card, save_card
+from stilowo_desk.realizations import (
+    REALIZATION_ID,
+    RealizationError,
+    RealizationWrite,
+    create_realization,
+    delete_realization,
+    listed,
+    photo_file,
+    present as present_realization,
+    save_photo,
+    update_realization,
+)
 from stilowo_desk.store import (
     QUOTE_ID,
     StatusError,
@@ -45,6 +57,19 @@ def quotes_dir() -> Path:
 def messages_dir() -> Path:
     configured = os.environ.get("STILOWO_MESSAGES_DIR", "").strip()
     return Path(configured) if configured else DEFAULT_MESSAGES
+
+
+def uploads_dir() -> Path:
+    return quotes_dir().parent / "uploads"
+
+
+def _realization_photo(realization_id: str) -> FileResponse:
+    if not REALIZATION_ID.fullmatch(realization_id):
+        raise HTTPException(status_code=404, detail="Nie ma takiego zdjęcia.")
+    path = photo_file(uploads_dir(), realization_id)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Nie ma takiego zdjęcia.")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @asynccontextmanager
@@ -80,6 +105,10 @@ class MessagePatch(BaseModel):
 
 class AskBody(BaseModel):
     question: str = ""
+
+
+class RealizationCreate(BaseModel):
+    title: str = "Nowa realizacja"
 
 
 @app.exception_handler(HTTPException)
@@ -187,6 +216,77 @@ def panel_save_rates(
     except ValidationError as error:
         raise HTTPException(status_code=400, detail="Stawka ma być liczbą od 0 do 20 000 zł.") from error
     return save_card(db, card)
+
+
+@app.get("/api/realizations")
+def public_realizations(db: Session = Depends(get_session)) -> dict:
+    return {"items": listed(db, published_only=True)}
+
+
+@app.get("/api/realizations/{realization_id}/photo")
+def public_realization_photo(realization_id: str) -> FileResponse:
+    return _realization_photo(realization_id)
+
+
+@app.get("/api/panel/realizations")
+def panel_realizations(db: Session = Depends(get_session), _auth: None = Depends(require_workshop)) -> dict:
+    return {"items": listed(db, published_only=False)}
+
+
+@app.post("/api/panel/realizations")
+def panel_create_realization(
+    body: RealizationCreate,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    try:
+        row = create_realization(db, body.title)
+    except RealizationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return present_realization(row)
+
+
+@app.patch("/api/panel/realizations/{realization_id}")
+def panel_update_realization(
+    realization_id: str,
+    body: RealizationWrite,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    try:
+        row = update_realization(db, realization_id, body)
+    except RealizationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nie ma takiej realizacji.")
+    return present_realization(row)
+
+
+@app.delete("/api/panel/realizations/{realization_id}")
+def panel_delete_realization(
+    realization_id: str,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    if not delete_realization(db, uploads_dir(), realization_id):
+        raise HTTPException(status_code=404, detail="Nie ma takiej realizacji.")
+    return {"ok": True}
+
+
+@app.post("/api/panel/realizations/{realization_id}/photo")
+def panel_realization_photo(
+    realization_id: str,
+    photo: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    raw = photo.file.read(8_000_001)
+    try:
+        row = save_photo(db, uploads_dir(), realization_id, raw)
+    except RealizationError as error:
+        status = 404 if "Nie ma takiej" in str(error) else 400
+        raise HTTPException(status_code=status, detail=str(error)) from error
+    return present_realization(row)
 
 
 @app.post("/api/panel/assistant")

@@ -4,6 +4,7 @@ import { Reveal } from "./Reveal.jsx";
 import { StoryHero } from "./StoryHero.jsx";
 import { PieceCards } from "./Pieces.jsx";
 import { company, opinions } from "./site.js";
+import { useRealizations } from "./useRealizations.js";
 
 function usePageTitle(title) {
   useEffect(() => {
@@ -126,37 +127,44 @@ export function CompanyPage() {
 
 export function RealizationsPage() {
   usePageTitle(`${company.name} — realizacje`);
+  const items = useRealizations();
+  const one = items.length === 1;
 
   return (
     <div className="page story">
       <StoryHero
         kicker="Realizacje"
-        title="Jedna robota, którą pokazujemy"
-        lede="Na stronie jest jedno zdjęcie gotowego mebla. Półka pod telewizor i regał są modelami w kalkulatorze, nie zamówieniami klientów."
+        title={items.length === 0 ? "Jeszcze bez zdjęcia" : one ? "Jedna robota, którą pokazujemy" : "Meble, które już stoją"}
+        lede={
+          items.length === 0
+            ? "Na stronie nie ma teraz zdjęcia gotowego mebla. Półka, regał i barierka zostają modelami w kalkulatorze."
+            : one
+              ? "Na stronie jest jedno zdjęcie gotowego mebla. Półka pod telewizor i regał są modelami w kalkulatorze, nie zamówieniami klientów."
+              : "Na stronie są zdjęcia gotowych mebli. Półka, regał i barierka w kalkulatorze to modele, nie zamówienia klientów."
+        }
       />
 
       <section className="story-block">
-        <Reveal as="article" className="realization">
-          <div className="realization-photo">
-            <img src="/realizacja.jpg" alt="Czarny stojak na drewno przy schodach, z dębowym blatem i polanami w środku" />
-          </div>
-          <div>
-            <p className="section-kicker">Stal i drewno</p>
-            <h2>Stojak na drewno przy schodach</h2>
-            <p>
-              Czarna rama, dębowy blat i polana ułożone w środku. Stoi przy schodach, na jasnej
-              drewnianej podłodze, obok szarej ściany i wnęki. Na zdjęciu widać krótkie nogi.
-            </p>
-            <p>
-              W kalkulatorze ten model to 140 × 45 × 30 cm, rama 3 cm, blat dąb 2 cm, malowanie czerń.
-              Cena modelu ze zdjęcia: 699 zł. Wysokość nóg ustawiasz osobno i nie zmienia tej kwoty.
-              Po otwarciu kalkulator startuje z nogami 10 cm. Przycisk „Model ze zdjęcia” ustawia 0 cm,
-              czyli wersję, od której liczymy 699 zł.
-            </p>
-            <p className="realization-price">699 zł</p>
-            <Link to="/kalkulator/stojak-na-drewno">Policz swój wymiar</Link>
-          </div>
-        </Reveal>
+        {items.length === 0 ? (
+          <p className="lede">Nie pokazujemy jeszcze zdjęcia gotowego mebla.</p>
+        ) : (
+          items.map((item) => (
+            <Reveal as="article" className="realization" key={item.id}>
+              <div className="realization-photo">
+                {item.image ? <img src={item.image} alt={item.alt || item.title} /> : null}
+              </div>
+              <div>
+                <p className="section-kicker">{item.kicker}</p>
+                <h2>{item.title}</h2>
+                {(item.body || item.summary).split(/\n\n+/).filter(Boolean).map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+                {item.priceLabel ? <p className="realization-price">{item.priceLabel}</p> : null}
+                {item.calculatorPath ? <Link to={item.calculatorPath}>Policz swój wymiar</Link> : null}
+              </div>
+            </Reveal>
+          ))
+        )}
       </section>
 
       <section className="story-block">

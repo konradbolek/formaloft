@@ -86,6 +86,42 @@ export function savePanelRates(rates) {
   });
 }
 
+export function publishedRealizations() {
+  return fetch("/desk/api/realizations").then(readJson);
+}
+
+export function panelRealizations() {
+  return adminFetch(`${panel}/realizations`);
+}
+
+export function createRealization(title) {
+  return adminFetch(`${panel}/realizations`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+}
+
+export function saveRealization(id, patch) {
+  return adminFetch(`${panel}/realizations/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function removeRealization(id) {
+  return adminFetch(`${panel}/realizations/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function uploadRealizationPhoto(id, file) {
+  const body = new FormData();
+  body.append("photo", file);
+  return fetch(`${panel}/realizations/${encodeURIComponent(id)}/photo`, {
+    method: "POST",
+    body,
+    credentials: "include",
+  }).then(readJson);
+}
+
 export function askWorkshop(question) {
   return adminFetch(`${panel}/assistant`, {
     method: "POST",

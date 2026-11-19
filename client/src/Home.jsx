@@ -4,7 +4,8 @@ import { Embers } from "./Embers.jsx";
 import { Reveal } from "./Reveal.jsx";
 import { Ribbon } from "./Ribbon.jsx";
 import { PiecePicker } from "./Pieces.jsx";
-import { atmosphere, company, facts, opinions, realizations } from "./site.js";
+import { atmosphere, company, facts, opinions } from "./site.js";
+import { useRealizations } from "./useRealizations.js";
 
 function Price({ value }) {
   const amount = Number.parseInt(value, 10);
@@ -60,6 +61,45 @@ function Price({ value }) {
     <p ref={ref} className="realization-price" aria-label={value}>
       {shown.toLocaleString("pl-PL")} {suffix}
     </p>
+  );
+}
+
+function RealizationBand() {
+  const items = useRealizations();
+  const heading = items.length === 1 ? items[0].title : "Meble, które już stoją";
+
+  return (
+    <section className="home-section" id="realizacje">
+      <Reveal>
+        <div className="section-head">
+          <p className="section-kicker">Realizacje</p>
+          <h2>{items.length === 0 ? "Jeszcze bez zdjęcia" : heading}</h2>
+          <Link className="more-link" to="/realizacje">
+            Więcej o realizacji
+          </Link>
+        </div>
+      </Reveal>
+      {items.length === 0 ? (
+        <p className="section-copy">Nie pokazujemy jeszcze zdjęcia gotowego mebla.</p>
+      ) : (
+        <ul className="realization-list">
+          {items.map((item) => (
+            <Reveal as="li" key={item.id} className="realization">
+              <div className="realization-photo">
+                {item.image ? <img src={item.image} alt={item.alt || item.title} /> : null}
+              </div>
+              <div>
+                <p className="section-kicker">{item.kicker}</p>
+                <h3>{item.title}</h3>
+                <p>{item.summary}</p>
+                {item.priceLabel ? <Price value={item.priceLabel} /> : null}
+                {item.calculatorPath ? <Link to={item.calculatorPath}>Policz swój wymiar</Link> : null}
+              </div>
+            </Reveal>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -143,33 +183,7 @@ export function Home() {
         </ul>
       </section>
 
-      <section className="home-section" id="realizacje">
-        <Reveal>
-          <div className="section-head">
-            <p className="section-kicker">Realizacje</p>
-            <h2>Stojak przy schodach</h2>
-            <Link className="more-link" to="/realizacje">
-              Więcej o realizacji
-            </Link>
-          </div>
-        </Reveal>
-        <ul className="realization-list">
-          {realizations.map((item) => (
-            <Reveal as="li" key={item.title} className="realization">
-              <div className="realization-photo">
-                <img src={item.image} alt={item.title} />
-              </div>
-              <div>
-                <p className="section-kicker">{item.meta}</p>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-                <Price value={item.price} />
-                <Link to="/kalkulator/stojak-na-drewno">Policz swój wymiar</Link>
-              </div>
-            </Reveal>
-          ))}
-        </ul>
-      </section>
+      <RealizationBand />
 
       <section className="home-section opinion-band" id="opinie">
         <div className="opinion-inner">

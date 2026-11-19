@@ -12,6 +12,7 @@ dependencies = [
   "psycopg[binary]==3.2.13",
   "reportlab==4.2.5",
   "openai==1.55.3",
+  "python-multipart==0.0.20",
 ]
 
 [project.optional-dependencies]

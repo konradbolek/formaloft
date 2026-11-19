@@ -49,6 +49,23 @@ class MessageRecord(Base):
     note: Mapped[str] = mapped_column(Text, default="")
 
 
+class RealizationRecord(Base):
+    __tablename__ = "realizations"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    title: Mapped[str] = mapped_column(String(120), default="")
+    kicker: Mapped[str] = mapped_column(String(80), default="")
+    summary: Mapped[str] = mapped_column(String(400), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    price_label: Mapped[str] = mapped_column(String(40), default="")
+    image: Mapped[str] = mapped_column(String(200), default="")
+    alt: Mapped[str] = mapped_column(String(200), default="")
+    calculator_path: Mapped[str] = mapped_column(String(120), default="")
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[str] = mapped_column(String(40), default="")
+
+
 class RateCardRecord(Base):
     __tablename__ = "rate_card"
 
