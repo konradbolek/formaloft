@@ -86,6 +86,32 @@ export function savePanelRates(rates) {
   });
 }
 
+export function askWorkshop(question) {
+  return adminFetch(`${panel}/assistant`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
+export async function downloadOffer(id) {
+  const response = await fetch(`${panel}/quotes/${encodeURIComponent(id)}/offer`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Nie udało się przygotować oferty.");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Stilowo-${id}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function saveQuote(config, previewUrl, wallFile) {
   const preview = await fetch(previewUrl).then((response) => response.blob());
   const body = new FormData();

@@ -199,6 +199,59 @@ def test_panel_reads_quotes_and_messages(monkeypatch, tmp_path: Path) -> None:
         assert message_file["handled"] is True
 
 
+def test_offer_pdf_uses_the_saved_quote(monkeypatch, tmp_path: Path) -> None:
+    quotes = tmp_path / "quotes"
+    write_quote(
+        quotes,
+        "FL-DESK2.json",
+        {
+            "id": "FL-DESK2",
+            "createdAt": "2026-11-17T12:00:00.000Z",
+            "product": "barierka",
+            "status": "rozmowa",
+            "price": {
+                "total": 1993,
+                "currency": "PLN",
+                "lines": [{"label": "Słupki", "detail": "6 szt.", "amount": 304}],
+            },
+            "config": {"length": 300, "height": 110, "paint": "czern"},
+            "clientName": "Kowalski",
+            "clientPhone": "500 000 000",
+            "note": "Odbiór w piątek",
+        },
+    )
+    monkeypatch.setenv("STILOWO_DATABASE_URL", f"sqlite:///{tmp_path / 'desk.db'}")
+    monkeypatch.setenv("STILOWO_QUOTES_DIR", str(quotes))
+    monkeypatch.setenv("ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("ADMIN_SECRET", "test-secret")
+
+    with TestClient(app) as client:
+        assert client.get("/api/panel/quotes/FL-DESK2/offer").status_code == 401
+        login(client)
+        assert client.get("/api/panel/quotes/FL-BRAK2/offer").status_code == 404
+        response = client.get("/api/panel/quotes/FL-DESK2/offer")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert "Stilowo-FL-DESK2.pdf" in response.headers["content-disposition"]
+
+        from pypdf import PdfReader
+        from io import BytesIO
+
+        text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(response.content)).pages)
+        assert "STILOWO" in text
+        assert "ul. Grodzisko 10" in text
+        assert "Pogorzyce 32-500" in text
+        assert "535 947 696" in text
+        assert "FL-DESK2" in text
+        assert "Barierka balkonowa" in text
+        assert "1 993 zł" in text
+        assert "Słupki" in text
+        assert "Kowalski" in text
+        assert "Odbiór w piątek" in text
+        assert "17 listopada 2026" in text
+        assert "@" not in text
+
+
 def test_rate_card_is_saved_and_written_for_the_calculator(monkeypatch, tmp_path: Path) -> None:
     rates_path = tmp_path / "rates.json"
     monkeypatch.setenv("STILOWO_DATABASE_URL", f"sqlite:///{tmp_path / 'desk.db'}")
@@ -213,15 +266,89 @@ def test_rate_card_is_saved_and_written_for_the_calculator(monkeypatch, tmp_path
         opened = client.get("/api/panel/rates").json()
         assert opened["rates"]["woods"]["dab"] == 520
         assert opened["defaults"]["frame3"] == 32
+        assert opened["rates"]["labor"]["barierka"] == 280
+        assert opened["rates"]["steel"]["20"]["frame3"] == 32
         assert json.loads(rates_path.read_text(encoding="utf-8"))["laborBase"] == 200
 
         changed = dict(opened["rates"])
         changed["woods"] = {**changed["woods"], "dab": 600}
+        changed["labor"] = {**changed["labor"], "regal": 400}
         saved = client.put("/api/panel/rates", json=changed)
         assert saved.status_code == 200
         assert saved.json()["rates"]["woods"]["dab"] == 600
-        assert json.loads(rates_path.read_text(encoding="utf-8"))["woods"]["dab"] == 600
+        assert saved.json()["rates"]["labor"]["regal"] == 400
+        assert json.loads(rates_path.read_text(encoding="utf-8"))["labor"]["regal"] == 400
 
         rejected = client.put("/api/panel/rates", json={**changed, "frame2": -1})
         assert rejected.status_code == 400
         assert "20 000" in rejected.json()["error"]
+
+
+def test_assistant_answers_from_the_queue_and_stays_off_without_a_key(monkeypatch, tmp_path: Path) -> None:
+    quotes = tmp_path / "quotes"
+    messages = tmp_path / "messages"
+    write_quote(
+        quotes,
+        "FL-DESK2.json",
+        {
+            "id": "FL-DESK2",
+            "createdAt": "2026-11-17T12:00:00.000Z",
+            "product": "stojak",
+            "status": "produkcja",
+            "price": {"total": 699, "lines": []},
+            "config": {"height": 140, "width": 45, "depth": 30, "frameThickness": 3, "wood": "dab", "paint": "czern"},
+            "clientName": "Kowalski",
+        },
+    )
+    write_quote(
+        messages,
+        "WK-DESK2.json",
+        {
+            "id": "WK-DESK2",
+            "createdAt": "2026-11-17T12:05:00.000Z",
+            "name": "Warsztat",
+            "email": "warsztat@example.com",
+            "phone": "500 000 000",
+            "message": "Pytanie o termin",
+            "handled": False,
+        },
+    )
+    monkeypatch.setenv("STILOWO_DATABASE_URL", f"sqlite:///{tmp_path / 'desk.db'}")
+    monkeypatch.setenv("STILOWO_QUOTES_DIR", str(quotes))
+    monkeypatch.setenv("STILOWO_MESSAGES_DIR", str(messages))
+    monkeypatch.setenv("ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("ADMIN_SECRET", "test-secret")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    from stilowo_desk.assistant import Answer, workshop_brief
+
+    seen = {}
+
+    def fake_complete(question: str, brief: str) -> Answer:
+        seen["question"] = question
+        seen["brief"] = brief
+        return Answer(answer="W produkcji jest jedna wycena.", quoteIds=["FL-DESK2", "FL-NIEMA"])
+
+    with TestClient(app) as client:
+        assert client.post("/api/panel/assistant", json={"question": "Ile jest w produkcji?"}).status_code == 401
+        login(client)
+        off = client.post("/api/panel/assistant", json={"question": "Ile jest w produkcji?"})
+        assert off.status_code == 503
+        assert "OPENAI_API_KEY" in off.json()["error"]
+
+        monkeypatch.setattr("stilowo_desk.assistant.complete", fake_complete)
+        empty = client.post("/api/panel/assistant", json={"question": "   "})
+        assert empty.status_code == 400
+
+        answered = client.post("/api/panel/assistant", json={"question": "Ile jest w produkcji?"})
+        assert answered.status_code == 200
+        body = answered.json()
+        assert body["answer"] == "W produkcji jest jedna wycena."
+        assert body["quoteIds"] == ["FL-DESK2"]
+        assert "FL-DESK2" in seen["brief"]
+        assert "699" in seen["brief"]
+        assert "warsztat@example.com" not in seen["brief"]
+        assert "Kowalski" in seen["brief"]
+        brief = workshop_brief({"quotes": [], "messages": [], "dashboard": {}}, {"woods": {"dab": 520}})
+        assert "520" in brief
+        assert "utarg" in brief

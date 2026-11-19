@@ -1,9 +1,14 @@
 pyproject.toml
 src/stilowo_desk/__init__.py
 src/stilowo_desk/app.py
+src/stilowo_desk/auth.py
 src/stilowo_desk/db.py
+src/stilowo_desk/describe.py
 src/stilowo_desk/models.py
+src/stilowo_desk/offer.py
+src/stilowo_desk/panel.py
 src/stilowo_desk/quotes.py
+src/stilowo_desk/rates.py
 src/stilowo_desk/store.py
 src/stilowo_desk/summary.py
 src/stilowo_desk.egg-info/PKG-INFO
@@ -11,4 +16,7 @@ src/stilowo_desk.egg-info/SOURCES.txt
 src/stilowo_desk.egg-info/dependency_links.txt
 src/stilowo_desk.egg-info/requires.txt
 src/stilowo_desk.egg-info/top_level.txt
+src/stilowo_desk/fonts/DejaVuSans-Bold.ttf
+src/stilowo_desk/fonts/DejaVuSans.ttf
+src/stilowo_desk/fonts/LICENSE
 tests/test_desk.py

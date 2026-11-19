@@ -3138,6 +3138,41 @@ a.brand {
   font-weight: 500;
 }
 
+.rate-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rate-table th,
+.rate-table td {
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  font-weight: 650;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.rate-table input {
+  width: 100%;
+  border: 1px solid rgba(27, 23, 20, 0.16);
+  border-radius: 10px;
+  background: #fffdf9;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.steel-wall {
+  margin: 0 0 14px;
+  border: 0;
+  padding: 0;
+}
+
+.steel-wall legend {
+  margin-bottom: 6px;
+  font-weight: 650;
+}
+
 .rate-grid input {
   border: 1px solid rgba(27, 23, 20, 0.16);
   border-radius: 10px;
@@ -3167,6 +3202,63 @@ a.brand {
 
 .admin-savebar span {
   color: var(--muted);
+}
+
+.assistant label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.assistant textarea {
+  border: 1px solid rgba(27, 23, 20, 0.16);
+  border-radius: 10px;
+  background: #fffdf9;
+  padding: 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  resize: vertical;
+}
+
+.assistant-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.assistant-examples button,
+.assistant-links button {
+  border: 1px solid rgba(27, 23, 20, 0.16);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.assistant-answer {
+  background: var(--paper);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.assistant-answer p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.assistant-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .desk {

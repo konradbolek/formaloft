@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { PAINTS, currentRates, frameRatePerMeter } from "./pricing.js";
+import { PAINTS, currentRates, frameRatePerMeter, readSteelWall } from "./pricing.js";
 import { railLayout } from "../../shared/railLayout.js";
 
 /**
@@ -50,6 +50,7 @@ export const RAIL_REFERENCE = {
   sides: "obie",
   sideLength: 110,
   bars: "pion",
+  steelWall: 2,
   paint: "czern",
 };
 
@@ -64,8 +65,8 @@ function barRatePerMeter(diameterCm) {
   return lerp(1, bar1, 2, bar2, diameterCm);
 }
 
-function profileRate(widthCm, depthCm) {
-  return (frameRatePerMeter(widthCm) + frameRatePerMeter(depthCm)) / 2;
+function profileRate(widthCm, depthCm, wallMm) {
+  return (frameRatePerMeter(widthCm, wallMm) + frameRatePerMeter(depthCm, wallMm)) / 2;
 }
 
 function num(value) {
@@ -195,6 +196,7 @@ export function parseRailConfig(input = {}) {
   }
   if (!mount) fields.push("Wybierz mocowanie: na płycie albo do czoła.");
   if (!paintById.has(paint)) fields.push("Wybierz kolor malowania stali.");
+  const steelWall = readSteelWall(input, fields);
 
   if (
     inRange(height, limits.height) &&
@@ -243,6 +245,7 @@ export function parseRailConfig(input = {}) {
     sides,
     sideLength,
     bars,
+    steelWall,
     paint,
   };
   const layout = railLayout(config);
@@ -264,12 +267,13 @@ export function priceRail(config) {
   const railMeters = layout.handrailCm / 100;
   const bottomMeters = layout.bottomCm / 100;
   const barMeters = layout.barCm / 100;
-  const postRate = profileRate(config.postWidth, config.postDepth);
-  const handrailRate = profileRate(config.handrailWidth, config.handrailThickness);
-  const bottomRate = profileRate(config.bottomWidth, config.bottomThickness);
+  const wall = config.steelWall || 2;
+  const postRate = profileRate(config.postWidth, config.postDepth, wall);
+  const handrailRate = profileRate(config.handrailWidth, config.handrailThickness, wall);
+  const bottomRate = profileRate(config.bottomWidth, config.bottomThickness, wall);
   const profileFill = config.fill === "profil";
   const fillRate = profileFill
-    ? profileRate(config.fillWidth, config.fillDepth)
+    ? profileRate(config.fillWidth, config.fillDepth, wall)
     : barRatePerMeter(config.barDiameter);
   const fillSection = profileFill
     ? `${config.fillWidth}×${config.fillDepth} cm`
@@ -277,14 +281,14 @@ export function priceRail(config) {
   const rates = currentRates();
   const structuralMeters = postMeters + railMeters + bottomMeters;
   const laborExact =
-    rates.railLaborBase + structuralMeters * rates.laborMeter + layout.barCount * rates.railLaborPiece;
+    rates.labor.barierka + structuralMeters * rates.laborMeter + layout.barCount * rates.railLaborPiece;
   const mountNote = config.mount === "czolo" ? `do czoła, płyta ${config.slabThickness} cm` : "na płycie";
 
   const lines = [
     {
       id: "posts",
       label: "Słupki",
-      detail: `${layout.postCount} szt. × ${fmt(layout.postSteelLength, 1)} cm · ${config.postWidth}×${config.postDepth} cm · ${fmt(postMeters, 2)} mb × ${fmt(postRate, 0)} zł · ${mountNote}`,
+      detail: `${layout.postCount} szt. × ${fmt(layout.postSteelLength, 1)} cm · ${config.postWidth}×${config.postDepth} cm · ścianka ${fmt(wall, wall % 1 === 0 ? 0 : 1)} mm · ${fmt(postMeters, 2)} mb × ${fmt(postRate, 0)} zł · ${mountNote}`,
       amount: money(postMeters * postRate),
     },
     {
@@ -339,7 +343,7 @@ export function getRailCatalog() {
     reference: RAIL_REFERENCE,
     referenceTotal: priceRail(RAIL_REFERENCE).total,
     referenceNote:
-      "300 × 110 cm, wysięg 110 cm, boki od ściany, słupek 4×4 cm, pochwyt 4×2 cm, rygiel 2×2 cm, pręty pionowe 1,2 cm, prześwit do 11 cm, na płycie",
+      "300 × 110 cm, wysięg 110 cm, boki od ściany, słupek 4×4 cm, ścianka 2 mm, pochwyt 4×2 cm, rygiel 2×2 cm, pręty pionowe 1,2 cm, prześwit do 11 cm, na płycie",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
   };
@@ -457,6 +461,15 @@ function assertRailPricing() {
   const missingPaint = parseRailConfig({ ...RAIL_REFERENCE, paint: undefined });
   if (!missingPaint.ok || missingPaint.config.paint !== "czern") {
     failures.push("Brak koloru powinien oznaczać czerń.");
+  }
+
+  if (quote.total !== 1993) {
+    failures.push(`Barierka wzorcowa ma kosztować 1993 zł, wyszło ${quote.total}.`);
+  }
+  const thickWall = priceRail({ ...RAIL_REFERENCE, steelWall: 3 });
+  const thinWall = priceRail({ ...RAIL_REFERENCE, steelWall: 1.5 });
+  if (!(thickWall.total > quote.total && quote.total > thinWall.total)) {
+    failures.push("Grubsza ścianka stali powinna podnosić cenę barierki.");
   }
 
   if (failures.length) {

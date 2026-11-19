@@ -7,9 +7,11 @@ import {
   adminPatchMessage,
   adminPatchQuote,
   adminSession,
+  downloadOffer,
 } from "./api.js";
 import { formatZl } from "./format.js";
 import { RatesPanel } from "./RatesPanel.jsx";
+import { AssistantPanel } from "./AssistantPanel.jsx";
 import { Logo } from "./Logo.jsx";
 import { company } from "./site.js";
 
@@ -409,6 +411,16 @@ export function AdminPage() {
           >
             Cennik
           </button>
+          <button
+            type="button"
+            className={section === "assistant" ? "is-on" : ""}
+            onClick={() => {
+              setSection("assistant");
+              setSelectedId("");
+            }}
+          >
+            Asystent
+          </button>
         </nav>
         <div className="admin-side-foot">
           <Link to="/">Na stronę</Link>
@@ -420,18 +432,28 @@ export function AdminPage() {
       <main className="admin-main">
         <header className="admin-head">
           <div>
-            <h1>{section === "quotes" ? "Wyceny" : section === "messages" ? "Wiadomości" : "Cennik"}</h1>
+            <h1>
+              {section === "quotes"
+                ? "Wyceny"
+                : section === "messages"
+                  ? "Wiadomości"
+                  : section === "assistant"
+                    ? "Asystent"
+                    : "Cennik"}
+            </h1>
             <p>
               {section === "rates"
                 ? "Stawki kalkulatora. Zapis liczy się od następnej wyceny na tym komputerze."
-                : !deskReady
-                  ? "Otwieram kolejkę…"
-                  : queue.length
-                    ? queue.join(" · ")
-                    : "Kolejka pusta. Nowe rzeczy wpadną tutaj same."}
+                : section === "assistant"
+                  ? "Pytanie o kolejkę i cennik. Asystent widzi tylko to, co jest w panelu."
+                  : !deskReady
+                    ? "Otwieram kolejkę…"
+                    : queue.length
+                      ? queue.join(" · ")
+                      : "Kolejka pusta. Nowe rzeczy wpadną tutaj same."}
             </p>
           </div>
-          <button type="button" className="admin-refresh" onClick={loadDesk} hidden={section === "rates"}>
+          <button type="button" className="admin-refresh" onClick={loadDesk} hidden={section === "rates" || section === "assistant"}>
             Odśwież
           </button>
         </header>
@@ -460,6 +482,13 @@ export function AdminPage() {
           </>
         ) : section === "rates" ? (
           <RatesPanel />
+        ) : section === "assistant" ? (
+          <AssistantPanel
+            onOpen={(id) => {
+              setSection("quotes");
+              setSelectedId(id);
+            }}
+          />
         ) : (
           <MessageDesk
             items={visibleMessages}
@@ -496,6 +525,19 @@ function QuoteDesk({
   onStatus,
   onCommit,
 }) {
+  const [offerState, setOfferState] = useState("");
+
+  async function download() {
+    if (!selected) return;
+    setOfferState("pdf");
+    try {
+      await downloadOffer(selected.id);
+      setOfferState("");
+    } catch (err) {
+      setOfferState(err.message || "Nie udało się przygotować oferty.");
+    }
+  }
+
   return (
     <div className={`admin-split${selected ? " is-open" : ""}`}>
       <section className="admin-list" aria-label="Lista wycen">
@@ -650,7 +692,18 @@ function QuoteDesk({
             </label>
             <div className="admin-savebar">
               <button type="submit">Zapisz dane</button>
-              <span>{saveState === "saving" ? "Zapisuję…" : saveState === "saved" ? "Zapisano" : ""}</span>
+              <button type="button" onClick={download} disabled={offerState === "pdf"}>
+                {offerState === "pdf" ? "Przygotowuję…" : "Pobierz ofertę"}
+              </button>
+              <span>
+                {saveState === "saving"
+                  ? "Zapisuję…"
+                  : saveState === "saved"
+                    ? "Zapisano"
+                    : offerState && offerState !== "pdf"
+                      ? offerState
+                      : ""}
+              </span>
               {draft.clientPhone && (
                 <a href={`tel:${draft.clientPhone.replace(/\s+/g, "")}`}>Zadzwoń</a>
               )}

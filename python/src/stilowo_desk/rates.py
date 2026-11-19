@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from stilowo_desk.models import RateCardRecord
@@ -25,13 +25,22 @@ MONEY = (
     "railLaborPiece",
 )
 
+DEFAULT_STEEL = {
+    "15": {"frame2": 17, "frame3": 24, "frame4": 35},
+    "20": {"frame2": 22, "frame3": 32, "frame4": 46},
+    "30": {"frame2": 33, "frame3": 48, "frame4": 69},
+}
+DEFAULT_LABOR = {"stojak": 200, "polka": 200, "regal": 200, "barierka": 280}
+
 DEFAULT_RATES = {
     "frame2": 22,
     "frame3": 32,
     "frame4": 46,
+    "steel": DEFAULT_STEEL,
     "finishM2": 80,
     "laborBase": 200,
     "laborMeter": 17,
+    "labor": DEFAULT_LABOR,
     "woods": {"sosna": 190, "buk": 310, "jesion": 450, "dab": 520, "orzech": 760},
     "bar1": 8,
     "bar2": 18,
@@ -60,13 +69,47 @@ class WoodRates(BaseModel):
         return _money(value)
 
 
-class RateCard(BaseModel):
+class ProfileRates(BaseModel):
     frame2: int
     frame3: int
     frame4: int
+
+    @field_validator("*")
+    @classmethod
+    def money(cls, value: int) -> int:
+        return _money(value)
+
+
+class SteelRates(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    w15: ProfileRates = Field(alias="15")
+    w20: ProfileRates = Field(alias="20")
+    w30: ProfileRates = Field(alias="30")
+
+class LaborRates(BaseModel):
+    stojak: int
+    polka: int
+    regal: int
+    barierka: int
+
+    @field_validator("*")
+    @classmethod
+    def money(cls, value: int) -> int:
+        return _money(value)
+
+
+class RateCard(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    frame2: int
+    frame3: int
+    frame4: int
+    steel: SteelRates
     finishM2: int
     laborBase: int
     laborMeter: int
+    labor: LaborRates
     woods: WoodRates
     bar1: int
     bar2: int
@@ -77,6 +120,36 @@ class RateCard(BaseModel):
     @classmethod
     def money(cls, value: int) -> int:
         return _money(value)
+
+
+def normalize_rates(raw: dict) -> dict:
+    data = dict(raw or {})
+    incoming = data.get("steel") if isinstance(data.get("steel"), dict) else {}
+    steel = {}
+    for wall, fallback in DEFAULT_STEEL.items():
+        row = incoming.get(wall) if isinstance(incoming.get(wall), dict) else {}
+        filled = dict(row)
+        for key, value in fallback.items():
+            if key not in filled:
+                filled[key] = data[key] if wall == "20" and key in data else value
+        steel[wall] = filled
+    data["steel"] = steel
+    for key in ("frame2", "frame3", "frame4"):
+        data.setdefault(key, steel["20"][key])
+    incoming_labor = data.get("labor") if isinstance(data.get("labor"), dict) else {}
+    labor = dict(incoming_labor)
+    labor.setdefault("stojak", data.get("laborBase", DEFAULT_LABOR["stojak"]))
+    labor.setdefault("polka", data.get("laborBase", DEFAULT_LABOR["polka"]))
+    labor.setdefault("regal", data.get("laborBase", DEFAULT_LABOR["regal"]))
+    labor.setdefault("barierka", data.get("railLaborBase", DEFAULT_LABOR["barierka"]))
+    data["labor"] = labor
+    data.setdefault("laborBase", labor["stojak"])
+    data.setdefault("railLaborBase", labor["barierka"])
+    return data
+
+
+def card_from(raw: dict) -> RateCard:
+    return RateCard.model_validate(normalize_rates(raw))
 
 
 class RateView(BaseModel):
@@ -92,7 +165,7 @@ def _money(value: int) -> int:
 
 
 def default_card() -> RateCard:
-    return RateCard.model_validate(DEFAULT_RATES)
+    return card_from(DEFAULT_RATES)
 
 
 def read_card(session: Session) -> RateView:
@@ -102,7 +175,7 @@ def read_card(session: Session) -> RateView:
         _store(session, card, row.updated_at if row else "")
         row = session.get(RateCardRecord, 1)
     else:
-        card = RateCard.model_validate_json(row.payload)
+        card = card_from(json.loads(row.payload))
     _write_file(card)
     return RateView(rates=card, defaults=default_card(), updatedAt=row.updated_at if row else "")
 
@@ -114,8 +187,12 @@ def save_card(session: Session, card: RateCard) -> RateView:
     return RateView(rates=card, defaults=default_card(), updatedAt=row.updated_at if row else "")
 
 
+def _payload(card: RateCard) -> dict:
+    return card.model_dump(by_alias=True)
+
+
 def _store(session: Session, card: RateCard, updated_at: str) -> None:
-    payload = card.model_dump_json()
+    payload = json.dumps(_payload(card), ensure_ascii=False)
     row = session.get(RateCardRecord, 1)
     if row is None:
         session.add(RateCardRecord(id=1, payload=payload, updated_at=updated_at))
@@ -130,5 +207,5 @@ def _write_file(card: RateCard) -> None:
     path = rates_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(card.model_dump(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.write_text(json.dumps(_payload(card), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)

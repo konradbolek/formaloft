@@ -26,7 +26,7 @@ def load_workshop_secrets(env_file: Path) -> None:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
-        if key not in {"ADMIN_PASSWORD", "ADMIN_SECRET"}:
+        if key not in {"ADMIN_PASSWORD", "ADMIN_SECRET", "OPENAI_API_KEY", "STILOWO_ASSISTANT_MODEL"}:
             continue
         os.environ.setdefault(key, value.strip().strip('"').strip("'"))
 

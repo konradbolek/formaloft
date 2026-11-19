@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { SteelWall } from "./SteelWall.jsx";
 import { PieceSwitch } from "./Pieces.jsx";
 import { Embers } from "./Embers.jsx";
 import { ShelfView } from "./ShelfView.jsx";
@@ -20,6 +21,7 @@ const EMPTY_CONFIG = {
   width: 45,
   depth: 30,
   frameThickness: 3,
+  steelWall: 2,
   wood: "dab",
   topThickness: 2,
   paint: "czern",
@@ -32,6 +34,7 @@ function sameConfig(a, b) {
     a.width === b.width &&
     a.depth === b.depth &&
     a.frameThickness === b.frameThickness &&
+    (a.steelWall || 2) === (b.steelWall || 2) &&
     a.wood === b.wood &&
     a.topThickness === b.topThickness &&
     (a.paint || "czern") === (b.paint || "czern") &&
@@ -283,6 +286,7 @@ export function CalculatorPage() {
                   onChange={(topThickness) => patch({ topThickness })}
                 />
               </div>
+              <SteelWall value={config.steelWall || 2} onChange={(steelWall) => patch({ steelWall })} />
 
               <fieldset className="paints">
                 <legend>Malowanie stali</legend>
@@ -496,8 +500,7 @@ export function CalculatorPage() {
         </div>
 
         <p className="caption tool-note">
-          Stawki warsztatowe są w <code>server/src/pricing.js</code>. Model ze zdjęcia ma
-          wychodzić {formatZl(catalog.referenceTotal)}.
+          Przy ściance 2 mm i stawkach startowych model ze zdjęcia wychodzi {formatZl(catalog.referenceTotal)}.
         </p>
       </main>
     </div>

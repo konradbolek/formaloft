@@ -9,6 +9,8 @@ Requires-Dist: pydantic==2.10.4
 Requires-Dist: sqlalchemy==2.0.36
 Requires-Dist: alembic==1.14.0
 Requires-Dist: psycopg[binary]==3.2.13
+Requires-Dist: reportlab==4.2.5
 Provides-Extra: dev
 Requires-Dist: httpx==0.28.1; extra == "dev"
 Requires-Dist: pytest==8.3.4; extra == "dev"
+Requires-Dist: pypdf==5.1.0; extra == "dev"

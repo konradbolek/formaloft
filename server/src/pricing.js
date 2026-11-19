@@ -30,6 +30,7 @@ export const REFERENCE = {
   width: 45,
   depth: 30,
   frameThickness: 3,
+  steelWall: 2,
   wood: "dab",
   topThickness: 2,
   paint: "czern",
@@ -98,8 +99,25 @@ function lerp(a0, v0, a1, v1, a) {
   return v0 + ((a - a0) / (a1 - a0)) * (v1 - v0);
 }
 
-export function frameRatePerMeter(thicknessCm) {
-  const { frame2, frame3, frame4 } = currentRates();
+export function readSteelWall(input, fields) {
+  const raw = input?.steelWall;
+  if (raw === undefined || raw === null || raw === "") return 2;
+  const number = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
+  const match = [1.5, 2, 3].find((item) => Math.abs(item - number) < 0.05);
+  if (!match) {
+    fields.push("Grubość stali: 1,5 mm, 2 mm albo 3 mm.");
+    return 2;
+  }
+  return match;
+}
+
+function steelRow(wallMm) {
+  const key = Math.abs(wallMm - 1.5) < 0.05 ? "15" : Math.abs(wallMm - 3) < 0.05 ? "30" : "20";
+  return currentRates().steel[key];
+}
+
+export function frameRatePerMeter(thicknessCm, wallMm = 2) {
+  const { frame2, frame3, frame4 } = steelRow(wallMm);
   if (thicknessCm <= 3) return lerp(2, frame2, 3, frame3, thicknessCm);
   return lerp(3, frame3, 4, frame4, thicknessCm);
 }
@@ -169,6 +187,7 @@ export function parseConfig(input = {}) {
   } else {
     frameThickness = snapCm(frameThickness, LIMITS.frameThickness);
   }
+  const steelWall = readSteelWall(input, fields);
   if (!inRange(topThickness, LIMITS.topThickness)) {
     fields.push(
       `Grubość blatu: od ${LIMITS.topThickness.min} do ${LIMITS.topThickness.max} cm.`,
@@ -204,7 +223,7 @@ export function parseConfig(input = {}) {
 
   return {
     ok: true,
-    config: { height, width, depth, frameThickness, wood, topThickness, paint, legHeight },
+    config: { height, width, depth, frameThickness, steelWall, wood, topThickness, paint, legHeight },
   };
 }
 
@@ -225,20 +244,21 @@ export function priceQuote(config) {
   const woodStart = legHeight > 0 ? Math.max(legHeight, frameThickness) : frameThickness;
   const meters = (4 * (postHeight + width + depth)) / 100;
   const area = (width / 100) * (depth / 100);
-  const steelRate = frameRatePerMeter(frameThickness);
+  const steelWall = config.steelWall || 2;
+  const steelRate = frameRatePerMeter(frameThickness, steelWall);
   const steelExact = meters * steelRate;
   const woodPrice = rates.woods[wood] ?? species.pricePerM2At2cm;
   const woodRate = woodPrice * (topThickness / 2);
   const woodExact = area * woodRate;
   const finishExact = area * rates.finishM2;
-  const laborExact = rates.laborBase + meters * rates.laborMeter;
+  const laborExact = rates.labor.stojak + meters * rates.laborMeter;
   const profile = Math.round(frameThickness * 10);
 
   const lines = [
     {
       id: "steel",
       label: "Rama stalowa",
-      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ${finish.name.toLowerCase()}${legHeight > 0 ? ` · nogi ${legHeight} cm` : ""}`,
+      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ścianka ${fmt(steelWall, steelWall % 1 === 0 ? 0 : 1)} mm · ${finish.name.toLowerCase()}${legHeight > 0 ? ` · nogi ${legHeight} cm` : ""}`,
       amount: money(steelExact),
       exact: round2(steelExact),
     },
@@ -296,7 +316,7 @@ export function getCatalog() {
     paints: PAINTS,
     reference: REFERENCE,
     referenceTotal: priceQuote(REFERENCE).total,
-    referenceNote: "140 × 45 × 30 cm, rama 3 cm, blat dąb 2 cm, malowanie czerń",
+    referenceNote: "140 × 45 × 30 cm, rama 3 cm, ścianka 2 mm, blat dąb 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
   };
@@ -325,6 +345,12 @@ function assertPricing() {
   const walnut = priceQuote({ ...REFERENCE, wood: "orzech" });
   if (!(walnut.total > quote.total && quote.total > pine.total)) {
     failures.push("Orzech powinien być droższy od dębu, a dąb od sosny.");
+  }
+
+  const thickWall = priceQuote({ ...REFERENCE, steelWall: 3 });
+  const thinWall = priceQuote({ ...REFERENCE, steelWall: 1.5 });
+  if (!(thickWall.total > quote.total && quote.total > thinWall.total)) {
+    failures.push("Grubsza ścianka stali powinna podnosić cenę.");
   }
 
   const thickFrame = priceQuote({ ...REFERENCE, frameThickness: 4 });

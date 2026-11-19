@@ -4,6 +4,7 @@ import {
   WOODS,
   currentRates,
   frameRatePerMeter,
+  readSteelWall,
 } from "./pricing.js";
 
 /**
@@ -27,6 +28,7 @@ export const TV_REFERENCE = {
   width: 180,
   depth: 40,
   frameThickness: 2,
+  steelWall: 2,
   shelfThickness: 2,
   shelves: 3,
   bays: 2,
@@ -135,6 +137,7 @@ export function parseTvConfig(input = {}) {
   }
   if (!woodById.has(wood)) fields.push("Wybierz gatunek drewna.");
   if (!paintById.has(paint)) fields.push("Wybierz kolor malowania stali.");
+  const steelWall = readSteelWall(input, fields);
   if (!inRange(legHeight, TV_LIMITS.legHeight)) {
     fields.push(`Wysokość nóg: od ${TV_LIMITS.legHeight.min} do ${TV_LIMITS.legHeight.max} cm.`);
   }
@@ -144,6 +147,7 @@ export function parseTvConfig(input = {}) {
     width,
     depth,
     frameThickness,
+    steelWall,
     shelfThickness,
     shelves,
     bays,
@@ -172,13 +176,14 @@ export function priceTvQuote(config) {
   const rings = config.shelves * 2 * (config.width + config.depth);
   const meters = (posts + rings) / 100;
   const area = config.shelves * (config.width / 100) * (config.depth / 100);
-  const steelRate = frameRatePerMeter(config.frameThickness);
+  const steelWall = config.steelWall || 2;
+  const steelRate = frameRatePerMeter(config.frameThickness, steelWall);
   const steelExact = meters * steelRate;
   const woodPrice = rates.woods[config.wood] ?? species.pricePerM2At2cm;
   const woodRate = woodPrice * (config.shelfThickness / 2);
   const woodExact = area * woodRate;
   const finishExact = area * rates.finishM2;
-  const laborExact = rates.laborBase + meters * rates.laborMeter;
+  const laborExact = rates.labor.polka + meters * rates.laborMeter;
   const profile = Math.round(config.frameThickness * 10);
   const bayWidth = (config.width - (config.bays + 1) * config.frameThickness) / config.bays;
 
@@ -186,7 +191,7 @@ export function priceTvQuote(config) {
     {
       id: "steel",
       label: "Rama stalowa",
-      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ${finish.name.toLowerCase()} · ${config.bays === 1 ? "1 segment" : `${config.bays} segmenty`}`,
+      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ścianka ${fmt(steelWall, steelWall % 1 === 0 ? 0 : 1)} mm · ${finish.name.toLowerCase()} · ${config.bays === 1 ? "1 segment" : `${config.bays} segmenty`}`,
       amount: money(steelExact),
       exact: round2(steelExact),
     },
@@ -238,7 +243,7 @@ export function getTvCatalog() {
     paints: PAINTS,
     reference: TV_REFERENCE,
     referenceTotal: priceTvQuote(TV_REFERENCE).total,
-    referenceNote: "50 × 180 × 40 cm, 3 półki, 2 segmenty, rama 2 cm, dąb 2 cm, malowanie czerń",
+    referenceNote: "50 × 180 × 40 cm, 3 półki, 2 segmenty, rama 2 cm, ścianka 2 mm, dąb 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
   };

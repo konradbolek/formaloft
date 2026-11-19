@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { SteelWall } from "./SteelWall.jsx";
 import { PieceSwitch } from "./Pieces.jsx";
 import { Embers } from "./Embers.jsx";
 import { TvShelfView } from "./TvShelfView.jsx";
@@ -22,6 +23,7 @@ const EMPTY_CONFIG = {
   width: 180,
   depth: 40,
   frameThickness: 2,
+  steelWall: 2,
   shelfThickness: 2,
   shelves: 3,
   bays: 2,
@@ -36,6 +38,7 @@ function sameConfig(a, b) {
     a.width === b.width &&
     a.depth === b.depth &&
     a.frameThickness === b.frameThickness &&
+    (a.steelWall || 2) === (b.steelWall || 2) &&
     a.shelfThickness === b.shelfThickness &&
     a.shelves === b.shelves &&
     a.bays === b.bays &&
@@ -296,6 +299,7 @@ export function TvCalculatorPage() {
                   onChange={(shelfThickness) => patch({ shelfThickness })}
                 />
               </div>
+              <SteelWall value={config.steelWall || 2} onChange={(steelWall) => patch({ steelWall })} />
               <div className="pair">
                 <Measure
                   label="Liczba półek"

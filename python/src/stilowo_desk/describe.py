@@ -56,6 +56,9 @@ def summarize_piece(raw: dict) -> str:
         )
         if paint:
             bits.append(paint)
+        wall = config.get("steelWall")
+        if wall:
+            bits.append("ścianka 1,5 mm" if wall == 1.5 else f"ścianka {wall:g} mm")
         return " · ".join(bits)
 
     wood = WOODS.get(str(config.get("wood") or ""), "")
@@ -63,6 +66,9 @@ def summarize_piece(raw: dict) -> str:
         f"{config.get('height')} × {config.get('width')} × {config.get('depth')} cm",
         f"rama {config.get('frameThickness')} cm",
     ]
+    wall = config.get("steelWall")
+    if wall:
+        bits.append("ścianka 1,5 mm" if wall == 1.5 else f"ścianka {wall:g} mm")
     if config.get("topThickness"):
         bits.append(_piece("blat", wood, config.get("topThickness")))
     if config.get("shelfThickness"):

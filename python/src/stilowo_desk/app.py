@@ -8,15 +8,18 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
+from stilowo_desk.assistant import AssistantFailed, AssistantOff, ask
 from stilowo_desk.auth import load_workshop_secrets, login, logout, require_workshop
 from stilowo_desk.db import configure, get_session, upgrade_database
+from stilowo_desk.offer import render_offer
 from stilowo_desk.panel import present_message, present_quote, workshop_desk
-from stilowo_desk.rates import RateCard, RateView, read_card, save_card
+from stilowo_desk.rates import RateView, card_from, read_card, save_card
 from stilowo_desk.store import (
+    QUOTE_ID,
     StatusError,
     raw_quotes,
     records,
@@ -75,6 +78,10 @@ class MessagePatch(BaseModel):
     note: Optional[str] = None
 
 
+class AskBody(BaseModel):
+    question: str = ""
+
+
 @app.exception_handler(HTTPException)
 def http_error(_request, exc: HTTPException):
     message = exc.detail if isinstance(exc.detail, str) else "Nie udało się zapisać."
@@ -126,6 +133,27 @@ def panel_quote(
     return present_quote(row, raw_quotes(quotes_dir()).get(row.id, {}))
 
 
+@app.get("/api/panel/quotes/{quote_id}/offer")
+def panel_offer(
+    quote_id: str,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> Response:
+    if not QUOTE_ID.fullmatch(quote_id):
+        raise HTTPException(status_code=404, detail="Nie ma takiej wyceny.")
+    directory = quotes_dir()
+    sync_from_files(db, directory)
+    raw = raw_quotes(directory).get(quote_id)
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Nie ma takiej wyceny.")
+    pdf = render_offer(raw, directory)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="Stilowo-{quote_id}.pdf"'},
+    )
+
+
 @app.patch("/api/panel/messages/{message_id}")
 def panel_message(
     message_id: str,
@@ -155,10 +183,29 @@ def panel_save_rates(
     _auth: None = Depends(require_workshop),
 ) -> RateView:
     try:
-        card = RateCard.model_validate(body)
+        card = card_from(body)
     except ValidationError as error:
         raise HTTPException(status_code=400, detail="Stawka ma być liczbą od 0 do 20 000 zł.") from error
     return save_card(db, card)
+
+
+@app.post("/api/panel/assistant")
+def panel_assistant(
+    body: AskBody,
+    db: Session = Depends(get_session),
+    _auth: None = Depends(require_workshop),
+) -> dict:
+    try:
+        desk = workshop_desk(db, quotes_dir(), messages_dir())
+        rates = read_card(db).rates.model_dump(by_alias=True)
+        answer = ask(body.question, desk, rates)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except AssistantOff as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except AssistantFailed as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return answer.model_dump()
 
 
 @app.get("/api/dashboard", response_model=Dashboard)

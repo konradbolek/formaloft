@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { SteelWall } from "./SteelWall.jsx";
 import { PieceSwitch } from "./Pieces.jsx";
 import { Embers } from "./Embers.jsx";
 import { RailView } from "./RailView.jsx";
@@ -40,6 +41,7 @@ function sameConfig(a, b) {
     (a.sides || "brak") === (b.sides || "brak") &&
     (a.sideLength || 110) === (b.sideLength || 110) &&
     (a.bars || "pion") === (b.bars || "pion") &&
+    (a.steelWall || 2) === (b.steelWall || 2) &&
     (a.paint || "czern") === (b.paint || "czern")
   );
 }
@@ -273,6 +275,7 @@ export function RailCalculatorPage() {
                 value={config.postDepth}
                 onChange={(postDepth) => patch({ postDepth })}
               />
+              <SteelWall value={config.steelWall || 2} onChange={(steelWall) => patch({ steelWall })} />
               <Measure
                 label="Rozstaw słupków"
                 hint="największy odstęp między osiami"

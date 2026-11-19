@@ -5,6 +5,7 @@ import {
   WOODS,
   currentRates,
   frameRatePerMeter,
+  readSteelWall,
 } from "./pricing.js";
 
 /**
@@ -27,6 +28,7 @@ export const REGAL_REFERENCE = {
   width: 96,
   depth: 28,
   frameThickness: 2,
+  steelWall: 2,
   shelfThickness: 2,
   wood: "sosna",
   paint: "czern",
@@ -146,6 +148,7 @@ export function parseRegalConfig(input = {}) {
   }
   if (!woodById.has(wood)) fields.push("Wybierz gatunek drewna.");
   if (!paintById.has(paint)) fields.push("Wybierz kolor malowania stali.");
+  const steelWall = readSteelWall(input, fields);
   if (!inRange(legHeight, REGAL_LIMITS.legHeight)) {
     fields.push(`Wysokość nóg: od ${REGAL_LIMITS.legHeight.min} do ${REGAL_LIMITS.legHeight.max} cm.`);
   }
@@ -155,6 +158,7 @@ export function parseRegalConfig(input = {}) {
     width,
     depth,
     frameThickness,
+    steelWall,
     shelfThickness,
     wood,
     paint,
@@ -183,13 +187,14 @@ export function priceRegalQuote(config) {
     (sum, item) => sum + (item.width / 100) * (config.depth / 100),
     0,
   );
-  const steelRate = frameRatePerMeter(config.frameThickness);
+  const steelWall = config.steelWall || 2;
+  const steelRate = frameRatePerMeter(config.frameThickness, steelWall);
   const steelExact = meters * steelRate;
   const woodPrice = rates.woods[config.wood] ?? species.pricePerM2At2cm;
   const woodRate = woodPrice * (config.shelfThickness / 2);
   const woodExact = area * woodRate;
   const finishExact = area * rates.finishM2;
-  const laborExact = rates.laborBase + meters * rates.laborMeter;
+  const laborExact = rates.labor.regal + meters * rates.laborMeter;
   const profile = Math.round(config.frameThickness * 10);
   const shown = regalGeometry(config);
 
@@ -197,7 +202,7 @@ export function priceRegalQuote(config) {
     {
       id: "steel",
       label: "Rama stalowa",
-      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ${finish.name.toLowerCase()}`,
+      detail: `${fmt(meters, 1)} mb × ${fmt(steelRate, steelRate % 1 === 0 ? 0 : 2)} zł · profil ${profile}×${profile} mm · ścianka ${fmt(steelWall, steelWall % 1 === 0 ? 0 : 1)} mm · ${finish.name.toLowerCase()}`,
       amount: money(steelExact),
       exact: round2(steelExact),
     },
@@ -249,7 +254,7 @@ export function getRegalCatalog() {
     paints: PAINTS,
     reference: REGAL_REFERENCE,
     referenceTotal: priceRegalQuote(REGAL_REFERENCE).total,
-    referenceNote: "180 × 96 × 28 cm, układ ze zdjęcia, rama 2 cm, sosna 2 cm, malowanie czerń",
+    referenceNote: "180 × 96 × 28 cm, układ ze zdjęcia, rama 2 cm, ścianka 2 mm, sosna 2 cm, malowanie czerń",
     phone: "535 947 696",
     phoneHref: "tel:+48535947696",
   };

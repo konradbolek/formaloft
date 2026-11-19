@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getCatalog, getPrice, saveQuote } from "./api.js";
 import { formatCm, formatZl } from "./format.js";
 import { Measure } from "./Measure.jsx";
+import { SteelWall } from "./SteelWall.jsx";
 import { PieceSwitch } from "./Pieces.jsx";
 import { Embers } from "./Embers.jsx";
 import { RegalView } from "./RegalView.jsx";
@@ -22,6 +23,7 @@ const EMPTY_CONFIG = {
   width: 96,
   depth: 28,
   frameThickness: 2,
+  steelWall: 2,
   shelfThickness: 2,
   wood: "sosna",
   paint: "czern",
@@ -34,6 +36,7 @@ function sameConfig(a, b) {
     a.width === b.width &&
     a.depth === b.depth &&
     a.frameThickness === b.frameThickness &&
+    (a.steelWall || 2) === (b.steelWall || 2) &&
     a.shelfThickness === b.shelfThickness &&
     a.wood === b.wood &&
     (a.paint || "czern") === (b.paint || "czern") &&
@@ -340,6 +343,7 @@ export function RegalCalculatorPage() {
                   onChange={(shelfThickness) => patch({ shelfThickness })}
                 />
               </div>
+              <SteelWall value={config.steelWall || 2} onChange={(steelWall) => patch({ steelWall })} />
 
               <fieldset className="paints">
                 <legend>Malowanie stali</legend>
